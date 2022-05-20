@@ -3,7 +3,7 @@ Description: test module AllSkyOverview
 Author: Hejun Xie
 Date: 2022-05-20 00:14:16
 LastEditors: Hejun Xie
-LastEditTime: 2022-05-20 01:06:58
+LastEditTime: 2022-05-20 20:50:22
 '''
 
 # Global imports
@@ -14,15 +14,24 @@ import xarray as xr
 
 from allskyScene import AllSkyInno, \
     AGRI_data, MWRI_data, \
-    plot_allsky_level, interp2plevel, \
+    AllSkyOverview, \
+    interp2plevel, \
     get_dxa_dataset, get_xb_dataset, get_grapesinput_dataset 
 
 FORCE_INTERP = False
 
 # plot settings
-# PLOT_LEVELS = [1000.,850.,700.,500.,300.,200.]
-PLOT_LEVELS = [850.]
-# PLOT_LEVELS = ['bottom']
+# valid = [1000.,850.,700.,500.,300.,200.]
+LEVELS_JOBS = [850.]
+
+# valid: ['AGRI_IR', 'MWRI', 'HYDRO']
+HYDRO_OVERLAY_JOBS = ['AGRI_IR']
+
+# valid ['RH', 'T']
+ANALY_INCRE_JOBS = ['RH']
+
+# valid ['Global', 'EastAsia', 'NorthIndianOcean']
+REGION_JOBS = ['Global', 'EastAsia', 'NorthIndianOcean']
 
 '''
 1. READ INNOVATION
@@ -68,9 +77,15 @@ for ch_no in ch_nos:
         ds_dxa_plevel = xr.open_dataset(dxa_plevel_file)
         ds_xb_plevel = xr.open_dataset(xb_plevel_file)
     
-    for level in PLOT_LEVELS:
-        plot_allsky_level(asi, ch_no, 
-            ds_dxa, ds_dxa_plevel, 
-            ds_xb, ds_xb_plevel, ds_grapesinput, 
-            agri, mwri,
-            level=level)
+    aso = AllSkyOverview(asi, ch_no, 
+        ds_dxa, ds_dxa_plevel,
+        ds_xb, ds_xb_plevel, ds_grapesinput,
+        agri, mwri)
+    
+    aso.assign_jobs(region_jobs=REGION_JOBS,
+        level_jobs=LEVELS_JOBS,
+        analy_incre_jobs=ANALY_INCRE_JOBS,
+        hydro_overlay_jobs=HYDRO_OVERLAY_JOBS)
+    
+    aso.do_jobs()
+    
