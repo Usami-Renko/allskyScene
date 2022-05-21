@@ -3,7 +3,7 @@ Description: test module AllSkyOverview
 Author: Hejun Xie
 Date: 2022-05-20 00:14:16
 LastEditors: Hejun Xie
-LastEditTime: 2022-05-20 20:50:22
+LastEditTime: 2022-05-22 00:08:23
 '''
 
 # Global imports
@@ -19,19 +19,26 @@ from allskyScene import AllSkyInno, \
     get_dxa_dataset, get_xb_dataset, get_grapesinput_dataset 
 
 FORCE_INTERP = False
+# interped plevels
+# PLEVEL_INTERP = np.array([1000.,850.,700.,500.,300.,200.])
+PLEVEL_INTERP = np.arange(1000, 200-1e-6, -10.)
+
+PLOT = True
 
 # plot settings
 # valid = [1000.,850.,700.,500.,300.,200.]
 LEVELS_JOBS = [850.]
 
 # valid: ['AGRI_IR', 'MWRI', 'HYDRO']
-HYDRO_OVERLAY_JOBS = ['AGRI_IR']
+# HYDRO_OVERLAY_JOBS = ['AGRI_IR', 'HYDRO', 'MWRI']
+HYDRO_OVERLAY_JOBS = []
 
 # valid ['RH', 'T']
 ANALY_INCRE_JOBS = ['RH']
 
 # valid ['Global', 'EastAsia', 'NorthIndianOcean']
-REGION_JOBS = ['Global', 'EastAsia', 'NorthIndianOcean']
+# REGION_JOBS = ['Global', 'EastAsia', 'NorthIndianOcean']
+REGION_JOBS = ['NorthIndianOcean']
 
 '''
 1. READ INNOVATION
@@ -63,29 +70,38 @@ for ch_no in ch_nos:
     grapesinput_file = '{}/binary/grapes_input.in.nc'.format(expr_dir)
     dxa_plevel_file = "{}/binary/dxa_plevel.nc".format(expr_dir)
     xb_plevel_file = "{}/binary/xb_plevel.nc".format(expr_dir)
+    grapesinput_plevel_file = '{}/binary/grapes_input_plevel.in.nc'.format(expr_dir)
     
     ds_dxa = get_dxa_dataset(dxa_file)
     ds_xb = get_xb_dataset(xb_file)
     ds_grapesinput = get_grapesinput_dataset(grapesinput_file)
     
     if FORCE_INTERP:
-        ds_dxa_plevel = interp2plevel(ds_dxa, ds_dxa, ds_xb.data_vars['Pressure'])
+        ds_grapesinput_plevel = interp2plevel(ds_grapesinput, ds_dxa, 
+            ds_grapesinput.data_vars['Pressure'], plevel_interp=PLEVEL_INTERP)
+        ds_grapesinput_plevel.to_netcdf(grapesinput_plevel_file)
+        ds_dxa_plevel = interp2plevel(ds_dxa, ds_dxa, 
+            ds_xb.data_vars['Pressure'], plevel_interp=PLEVEL_INTERP)
         ds_dxa_plevel.to_netcdf(dxa_plevel_file)
-        ds_xb_plevel = interp2plevel(ds_xb, ds_dxa, ds_xb.data_vars['Pressure'])
+        ds_xb_plevel = interp2plevel(ds_xb, ds_dxa, 
+            ds_xb.data_vars['Pressure'], plevel_interp=PLEVEL_INTERP)
         ds_xb_plevel.to_netcdf(xb_plevel_file)
     else:
         ds_dxa_plevel = xr.open_dataset(dxa_plevel_file)
         ds_xb_plevel = xr.open_dataset(xb_plevel_file)
+        ds_grapesinput_plevel = xr.open_dataset(grapesinput_plevel_file)
     
-    aso = AllSkyOverview(asi, ch_no, 
-        ds_dxa, ds_dxa_plevel,
-        ds_xb, ds_xb_plevel, ds_grapesinput,
-        agri, mwri)
-    
-    aso.assign_jobs(region_jobs=REGION_JOBS,
-        level_jobs=LEVELS_JOBS,
-        analy_incre_jobs=ANALY_INCRE_JOBS,
-        hydro_overlay_jobs=HYDRO_OVERLAY_JOBS)
-    
-    aso.do_jobs()
+    if PLOT:
+        aso = AllSkyOverview(asi, ch_no, 
+            ds_dxa, ds_dxa_plevel,
+            ds_xb, ds_xb_plevel, 
+            ds_grapesinput, ds_grapesinput_plevel,
+            agri, mwri)
+        
+        aso.assign_jobs(region_jobs=REGION_JOBS,
+            level_jobs=LEVELS_JOBS,
+            analy_incre_jobs=ANALY_INCRE_JOBS,
+            hydro_overlay_jobs=HYDRO_OVERLAY_JOBS)
+        
+        aso.do_jobs()
     

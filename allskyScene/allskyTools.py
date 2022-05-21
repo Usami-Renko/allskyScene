@@ -3,7 +3,7 @@ Description: plot dxa
 Author: Hejun Xie
 Date: 2022-05-10 16:53:55
 LastEditors: Hejun Xie
-LastEditTime: 2022-05-20 20:49:14
+LastEditTime: 2022-05-22 00:06:45
 '''
 
 '''
@@ -69,11 +69,18 @@ Q_LEVELS = [1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2]
 Q_LEVEL_LABELS = [r'$1.0e^{-7}$', r'$1.0e^{-6}$', r'$1.0e^{-5}$', 
                 r'$1.0e^{-4}$', r'$1.0e^{-3}$', r'$1.0e^{-2}$']
 
-# interped plevels
-PLEVEL = np.array([1000.,850.,700.,500.,300.,200.])
+MC_LEVELS = [1e-3, 1e-2, 1e-1, 1e+0, 1e+1]
+MC_LEVEL_LABELS = [r'$1.0e^{-3}$', r'$1.0e^{-2}$', 
+                  r'$1.0e^{-1}$', r'$1.0e^{0}$', r'$1.0e^{+1}$']
+
+CROSSSECTION_PTICKS = [1000.,850.,700.,500.,300.,200.]
+CROSSSECTION_PTICKLABELS = [r'1000hPa',r'850hPa',r'700hPa',r'500hPa',r'300hPa',r'200hPa']
 
 LAYOUT_DEBUG = False
 BBOX_CLIP = True
+
+dashdotdotted = (0, (3, 5, 1, 5, 1, 5))
+Delt=1e-6
 
 class AllSkyOverview(object):
     '''
@@ -82,13 +89,15 @@ class AllSkyOverview(object):
     '''
     def __init__(self, asi, ch_no,
                 ds_dxa, ds_dxa_plevel,
-                ds_xb, ds_xb_plevel, ds_grapesinput, 
+                ds_xb, ds_xb_plevel, 
+                ds_grapesinput, ds_grapesinput_plevel, 
                 agri, mwri):
         self.hydro_overlay_jobs = ['AGRI_IR']
         self.analy_incre_jobs = ['RH']
         self.level_jobs = [850.]
         self.region_jobs = ['Global']
         self.layout_settings = dict()
+        self.sector_settings = dict()
 
         # save data
         self.asi = asi
@@ -97,6 +106,8 @@ class AllSkyOverview(object):
         self.ds_dxa_plevel = ds_dxa_plevel
         self.ds_xb = ds_xb
         self.ds_xb_plevel = ds_xb_plevel
+        self.ds_grapesinput = ds_grapesinput
+        self.ds_grapesinput_plevel = ds_grapesinput_plevel
         self.agri = agri
         self.mwri = mwri
 
@@ -138,7 +149,19 @@ class AllSkyOverview(object):
             self.layout_settings['coastlineWidth'] = 2.0
         else:
             raise ValueError('Invalid region {}'.format(region))
-    
+
+    def update_sector_settings(self, region):
+        if region == 'EastAsia':
+            # self.sector_settings['sectorStart'] = [150., 20.] # (lon, lat)
+            # self.sector_settings['sectorEnd']   = [148., 40.] # (lon, lat)
+            self.sector_settings['sectorStart'] = [145., 15.] # (lon, lat)
+            self.sector_settings['sectorEnd']   = [138., 40.] # (lon, lat)
+        elif region == 'NorthIndianOcean':
+            self.sector_settings['sectorStart'] = [60., 10.] # (lon, lat)
+            self.sector_settings['sectorEnd']   = [80., 5.] # (lon, lat)
+        else:
+            raise ValueError('Invalid region {}'.format(region))
+
     def assign_jobs(self,
         region_jobs,
         level_jobs,
@@ -159,9 +182,152 @@ class AllSkyOverview(object):
         '''
         for region in self.region_jobs:
             self.update_layout_settings(region)
+            self.update_sector_settings(region)
             for level, analy_incre, hydro_overlay in \
                 product(self.level_jobs, self.analy_incre_jobs, self.hydro_overlay_jobs):
                 self.plot_allsky_level(region, level, analy_incre, hydro_overlay)
+            
+            for analy_incre in self.analy_incre_jobs:
+                self.plot_allsky_sector(region, analy_incre)
+
+    def plot_allsky_sector(self, region, analy_incre):
+        '''
+        Plot the given sector of a region
+        '''        
+        lonA, lonB = self.sector_settings['sectorStart'][0], self.sector_settings['sectorEnd'][0]
+        latA, latB = self.sector_settings['sectorStart'][1], self.sector_settings['sectorEnd'][1]
+
+        lon = xr.DataArray(np.linspace(lonA, lonB, 100), dims="z")
+        lat = xr.DataArray(np.linspace(latA, latB, 100), dims="z")
+
+        ds_dxa_plevel_sector = self.ds_dxa_plevel.interp(lon=lon, lat=lat, method='linear')
+        ds_xb_plevel_sector = self.ds_xb_plevel.interp(lon=lon, lat=lat, method='linear')
+        ds_grapesinput_plevel_sector = self.ds_grapesinput_plevel.interp(lon=lon, lat=lat, method='linear')
+
+        z = np.arange(len(ds_dxa_plevel_sector.coords['lon']))
+        p = ds_dxa_plevel_sector.coords['Pressure']
+        TZ, TP = np.meshgrid(z, p)
+
+        FIGNAME = './sector/d{}_ch{}_{}.png'.format(analy_incre, self.ch_no, region)
+        print(FIGNAME)
+        
+        fig = plt.figure(figsize=(13,7.5))
+        ax = fig.add_subplot(111)
+        plt.subplots_adjust(left=0.0, bottom=0.0, right=1.0, top=1.0, wspace=0.0, hspace=0.0)
+
+        '''
+        1. Plot contour and contourf
+        '''
+        dRH = ds_dxa_plevel_sector.data_vars['Increment Relative Humidity'].data # (Pressure, z)
+        dRH = dRH.T # (z, Pressure)
+        RH = ds_xb_plevel_sector.data_vars['Relative Humidity'].data # (Pressure, z)
+        RH = RH.T # (z, Pressure)
+
+        vstage_RH = 10.0
+        vstage_dRH = 1.0
+        if not Manual_RH_LEVELS:
+            dRHmin, dRHmax = get_vminvmax(dRH.flatten(), vstage=vstage_dRH, ign_perc=0.5, lsymmetric=True)
+            print('dRHmin={:>.1f}, dRHmax={:>.1f}'.format(dRHmin, dRHmax))
+            RHmin, RHmax = get_vminvmax(RH.flatten(), vstage=vstage_RH, ign_perc=0.0, lsymmetric=False)
+            print('RHmin={:>.1f}, RHmax={:>.1f}'.format(RHmin, RHmax))
+            RH_LEVELS_CF = np.arange(RHmin, RHmax+Delt, vstage_RH)
+            RH_TICKS = np.arange(RHmin, RHmax+Delt, vstage_RH)
+            dRH_LEVELS_CS = np.arange(dRHmin, dRHmax+Delt, vstage_dRH)
+        
+        norm = colors.Normalize(vmin=RH_TICKS[0], vmax=RH_TICKS[-1])
+        
+        # RHcmap = pplt.Colormap('bilbao_r').truncate(left=0.2)
+        RHcmap = pplt.Colormap('BrBg')
+        CF = ax.contourf(TZ.T, TP.T, RH, RH_LEVELS_CF, cmap=RHcmap, norm=norm, alpha=0.8)
+        CS = ax.contour(TZ.T, TP.T, dRH, dRH_LEVELS_CS, colors=('r',), linewidths=(2.0,), zorder=15)
+        labels = ax.clabel(CS, fmt=r'\textbf{%2.1f\%%}', colors='r', fontsize=18, zorder=15)
+
+        self._plot_nan_hatch(ax, TZ.T, TP.T, dRH, transform=None, 
+            color='brown', density=2, zorder=2)
+
+        self._plot_colorbar(fig, ax, CF, 
+            label=r'Background Field $x_b$ RH [\%]',
+            location='leftsector',
+            ticks=RH_TICKS)
+
+        '''
+        2.1 Plot imshow of hydrometeor
+        '''
+        hydro_list = ['QC_v', 'QR_v', 'QS_v', 'QI_v', 'QG_v']
+        # hydro_list = ['QS_v', 'QI_v', 'QG_v'] # ICE PHASE
+        # hydro_list = ['QC_v', 'QR_v'] # WATER PHASE
+        hydro_total = np.sum([ds_grapesinput_plevel_sector.data_vars[hydro] for hydro in hydro_list], axis=0) \
+            * 1e3 # [kg/m3] --> [g/m3] 
+        plot_hydro = np.ma.masked_array(hydro_total, hydro_total<MC_LEVELS[0])
+        norm = colors.LogNorm(vmin=MC_LEVELS[0], vmax=MC_LEVELS[-1])
+        Greys = pplt.Colormap('Greys', alpha=(0.0, 0.8))
+        spectral_r = pplt.Colormap('spectral_r')
+        rbtop = Greys.append(spectral_r, ratios=(1,1))
+
+        im = ax.imshow(plot_hydro, cmap=rbtop, norm=norm, 
+            origin='upper', extent=[np.min(z), np.max(z), np.min(p), np.max(p)],
+            zorder=10, aspect='auto')
+        
+        self._plot_colorbar(fig, ax, im, 
+            label=r'Total Hydrometeor Mass Concentration [$g \cdot m^{-3}$]',
+            location='rightsector')
+
+        '''
+        2.2 Plot freezing level
+        '''
+        T = ds_xb_plevel_sector.data_vars['Temperature'].data # (Pressure, z)
+        levels_freezing = np.nanargmin(np.abs(T - 273.15), axis=0)
+        pressures_freezing = np.array([p[level_freezing] for level_freezing in levels_freezing])
+        ax.plot(z, pressures_freezing, color='cornflowerblue', ls='--', lw=2.0, zorder=20)
+        ax.text(50, np.nanmean(pressures_freezing) - 20., r'$\textbf{Freezing Level}$', 
+            color='cornflowerblue', fontsize=20, ha='center', va='center', zorder=20)
+
+
+        '''
+        2.3 Plot wind barbs
+        '''
+        U = ds_xb_plevel_sector.data_vars['U wind'].data # (Pressure, z)
+        V = ds_xb_plevel_sector.data_vars['V wind'].data # (Pressure, z)
+        U, V = U.T, V.T # (z, Pressure)
+        ax.barbs(TZ.T[4::8,4::8], TP.T[4::8,4::8], U[4::8,4::8], V[4::8,4::8], 
+            fill_empty=True, pivot='middle', length=6, zorder=18,
+            sizes=dict(emptybarb=0.15, spacing=0.2, height=0.3, width=0.5),
+            barb_increments=dict(half=1.5, full=3, flag=15))
+
+        '''
+        3. Annotation and Output
+        '''
+        ax.minorticks_off()
+        ax.set_xticks([])
+        ax.invert_yaxis()
+        ax.set_yscale('log')
+        ax.set_yticks(CROSSSECTION_PTICKS)
+        ax.set_yticklabels(CROSSSECTION_PTICKLABELS)
+        
+        for tick in CROSSSECTION_PTICKS:
+            plt.axhline(y=tick, color='Grey', linestyle=dashdotdotted)
+        
+        LayerText = r'$\textbf{Cross Section AB}$'
+        InstText = r'$\textbf{'+get_channel_str(self.asi.instrument, self.ch_no-1)+'}$'
+        from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
+        lon_formatter, lat_formatter = LongitudeFormatter(), LatitudeFormatter() 
+        start_text = r'$\textbf{A' + '[{} {}]'.format(lon_formatter(lonA), lat_formatter(latA)) + '}$'
+        end_text   = r'$\textbf{B' + '[{} {}]'.format(lon_formatter(lonB), lat_formatter(latB)) + '}$'
+
+        ax.text(0.0, 1.0, LayerText, 
+            ha='left', va='bottom', size=20, transform=ax.transAxes, color='blue')
+        ax.text(1.0, 1.0, InstText, 
+            ha='right', va='bottom', size=20, transform=ax.transAxes)
+        ax.text(0.0, -0.02, start_text, 
+            ha='left', va='top', size=20, transform=ax.transAxes, color='blue')
+        ax.text(1.0, -0.02, end_text, 
+            ha='right', va='top', size=20, transform=ax.transAxes, color='blue')
+
+        plt.savefig(FIGNAME, bbox_inches='tight') if BBOX_CLIP \
+            else plt.savefig(FIGNAME)
+        plt.close()
+
+        exit()
 
     def plot_allsky_level(self, region, level, analy_incre, hydro_overlay):
         '''
@@ -175,7 +341,7 @@ class AllSkyOverview(object):
         
         LayerTag = '{}hPa'.format(level) if isinstance(level, float) \
             else 'Level{}'.format(level)
-        FIGNAME = 'd{}_{}_ch{}_{}_{}.png'.format(analy_incre, LayerTag, self.ch_no, hydro_overlay, region)
+        FIGNAME = './level/d{}_{}_ch{}_{}_{}.png'.format(analy_incre, LayerTag, self.ch_no, hydro_overlay, region)
         print(FIGNAME)
         
         fig = plt.figure(figsize=self.layout_settings['TwoColorBarfigsize'])
@@ -214,12 +380,17 @@ class AllSkyOverview(object):
             self.plot_streamline(ax, fig, level, zorder=12)
 
             '''
-            d). Plot active observation [zorder = 15]
+            d). Plot sector Line [zorder = 14]
+            '''
+            self.plot_sector_line(ax, fig, zorder=14)
+
+            '''
+            e). Plot active observation [zorder = 15]
             '''
             self.plot_active_obs(ax, fig, CBlocation=None, zorder=15)
             
         '''
-        e). Title, Annotation and Output
+        f). Title, Annotation and Output
         '''
         LayerText = r'$\textbf{' + LayerTag + '}$'
         InstTimeText = r'$\textbf{'+get_channel_str(self.asi.instrument, self.ch_no-1)+ \
@@ -250,6 +421,12 @@ class AllSkyOverview(object):
         elif location == 'right':
             CB = plotFig.colorbar(plotStuff, ax=[plotAx], shrink=self.layout_settings['colorbarShrink'], 
                 pad=self.layout_settings['colorbarRightPad'], location='right')
+        elif location == 'leftsector':
+            CB = plotFig.colorbar(plotStuff, ax=[plotAx], shrink=1.0, 
+                pad=0.07, location='left')
+        elif location == 'rightsector':
+            CB = plotFig.colorbar(plotStuff, ax=[plotAx], shrink=1.0, 
+                pad=0.01, location='right')
         else:
             raise ValueError('Invalid location {}'.format(location))
         CB.ax.set_ylabel(label, fontsize=20)
@@ -304,9 +481,6 @@ class AllSkyOverview(object):
         import cartopy.crs as ccrs
         import matplotlib.ticker as mticker
         from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
-
-        Delt=1e-6
-        dashdotdotted = (0, (3, 5, 1, 5, 1, 5))
 
         # locatations for GridLine and ticks 
         longridlocs = np.arange(self.layout_settings['llbox'][0], self.layout_settings['llbox'][1]+Delt, 
@@ -442,6 +616,20 @@ class AllSkyOverview(object):
             transform=data_projection,
             zorder=zorder)
 
+    def plot_sector_line(self, ax, fig, zorder=14):
+        
+        color = 'blue'
+
+        ax.plot([self.sector_settings['sectorStart'][0], self.sector_settings['sectorEnd'][0]],
+                [self.sector_settings['sectorStart'][1], self.sector_settings['sectorEnd'][1]],
+                lw=3.0, ls='--', marker='o', color='blue', transform=data_projection, zorder=zorder)
+        
+        ax.text(self.sector_settings['sectorStart'][0], self.sector_settings['sectorStart'][1],
+                'A', ha='left', va='top', color='blue', transform=data_projection, fontsize=25, zorder=zorder)
+
+        ax.text(self.sector_settings['sectorEnd'][0], self.sector_settings['sectorEnd'][1],
+                'B', ha='right', va='bottom', color='blue', transform=data_projection, fontsize=25, zorder=zorder)
+
     def plot_incre_RH(self, ax, fig, level, CBlocation=None, zorder=5):
         lon, lat = self.ds_dxa.coords['lon'], self.ds_dxa.coords['lat']
         dRH = self._select_layer(self.ds_dxa, self.ds_dxa_plevel,
@@ -503,13 +691,13 @@ def get_dxa_dataset(DXAFILE):
     ds = xr.open_dataset(DXAFILE)
     new_ds = xr.Dataset(
         {
-            "Increment Temperature": (["level", "y", "x"], ds.data_vars['t'].data[0,...]),
-            "Increment Relative Humidity": (["level", "y", "x"], ds.data_vars['rh'].data[0,...]),
-            "Increment Pressure" : (["level", "y", "x"], ds.data_vars['p'].data[0,...]),
+            "Increment Temperature": (["level", "lat", "lon"], ds.data_vars['t'].data[0,...]),
+            "Increment Relative Humidity": (["level", "lat", "lon"], ds.data_vars['rh'].data[0,...]),
+            "Increment Pressure" : (["level", "lat", "lon"], ds.data_vars['p'].data[0,...]),
         },
         coords={
-            "lon" : (["x"], ds.data_vars['longitudes'].data),
-            "lat" : (["y"], ds.data_vars['latitudes'].data),
+            "lon" : ds.data_vars['longitudes'].data,
+            "lat" : ds.data_vars['latitudes'].data,
         }
     )
     ds.close()
@@ -530,15 +718,15 @@ def get_xb_dataset(XBFILE):
     
     new_ds = xr.Dataset(
         {
-            "Temperature": (["level", "y", "x"], ds.data_vars['t'].data[0,...]),
-            "Relative Humidity": (["level", "y", "x"], ds.data_vars['rh'].data[0,...]),
-            "Pressure" : (["level", "y", "x"], ds.data_vars['p'].data[0,...]),
-            'U wind': (["level", "y", "x"], interped_u),
-            'V wind': (["level", "y", "x"], interped_v),
+            "Temperature": (["level", "lat", "lon"], ds.data_vars['t'].data[0,...]),
+            "Relative Humidity": (["level", "lat", "lon"], ds.data_vars['rh'].data[0,...]),
+            "Pressure" : (["level", "lat", "lon"], ds.data_vars['p'].data[0,...]),
+            'U wind': (["level", "lat", "lon"], interped_u),
+            'V wind': (["level", "lat", "lon"], interped_v),
         },
         coords={
-            "lon" : (["x"], ds.data_vars['longitudes'].data),
-            "lat" : (["y"], ds.data_vars['latitudes'].data),
+            "lon" : ds.data_vars['longitudes'].data,
+            "lat" : ds.data_vars['latitudes'].data,
         }
     )
     ds.close()
@@ -546,13 +734,40 @@ def get_xb_dataset(XBFILE):
 
 def get_grapesinput_dataset(GRAPESINPUT):
     ds = xr.open_dataset(GRAPESINPUT)
+    
+    # compute pressure
+    pi = ds.data_vars['pi'].data[0,...]
+    pi_on_level = (pi[:-1,...] + pi[1:,...]) / 2.0 # from level_pi to level
+    pressure = 1e3 * pi_on_level ** (7./2.) # convert from pi [-] to pressure [hPa]
+
+    # compute rho
+    temperature = pi_on_level * ds.data_vars['th'].data[0,...] # [K]
+    qv = ds.data_vars['qv'].data[0,...] # [kg/kg]
+    hydro_list = ['qc', 'qr', 'qi', 'qs', 'qg']
+    qhydro = np.sum([ds.data_vars[hydro].data[0,...] for hydro in hydro_list], axis=0) # [kg/kg]
+    denominator = temperature * 287.05 * ( 1.+ qv * (1.573 - 1. - qhydro)) 
+    rho = (pressure * 1e2) / denominator # [kg/m3]
+
     new_ds = xr.Dataset(
         {
-            "QR": (["level", "y", "x"], ds.data_vars['qr'].data[0,...]),
+            "Pressure": (["level", "lat", "lon"], pressure),
+            "QV": (["level", "lat", "lon"], ds.data_vars['qv'].data[0,...]),
+            "QC": (["level", "lat", "lon"], ds.data_vars['qc'].data[0,...]),
+            "QR": (["level", "lat", "lon"], ds.data_vars['qr'].data[0,...]),
+            "QI": (["level", "lat", "lon"], ds.data_vars['qi'].data[0,...]),
+            "QS": (["level", "lat", "lon"], ds.data_vars['qs'].data[0,...]),
+            "QG": (["level", "lat", "lon"], ds.data_vars['qg'].data[0,...]),
+
+            "QV_v": (["level", "lat", "lon"], ds.data_vars['qv'].data[0,...] * rho),
+            "QC_v": (["level", "lat", "lon"], ds.data_vars['qc'].data[0,...] * rho),
+            "QR_v": (["level", "lat", "lon"], ds.data_vars['qr'].data[0,...] * rho),
+            "QI_v": (["level", "lat", "lon"], ds.data_vars['qi'].data[0,...] * rho),
+            "QS_v": (["level", "lat", "lon"], ds.data_vars['qs'].data[0,...] * rho),
+            "QG_v": (["level", "lat", "lon"], ds.data_vars['qg'].data[0,...] * rho),
         },
         coords={
-            "lon" : (["x"], ds.data_vars['longitudes'].data),
-            "lat" : (["y"], ds.data_vars['latitudes'].data),
+            "lon" : ds.data_vars['longitudes'].data,
+            "lat" : ds.data_vars['latitudes'].data,
         }
     )
     ds.close()
@@ -572,7 +787,7 @@ def horiz_nearest_interp(ds_out, var_in):
             var_out[:,ilat,ilon] = var_in.data[:,jlat,jlon]
     return var_out
 
-def interp2plevel(ds, ds_out, pressure):
+def interp2plevel(ds, ds_out, pressure, plevel_interp):
     '''
     Description:
         interpolate the data of ds to horizontal grid of ds_grid and pressure
@@ -589,10 +804,10 @@ def interp2plevel(ds, ds_out, pressure):
     new_data = dict()
     for var in ds.data_vars.keys():
         if var != 'Pressure':
-            new_data[var] = (["Pressure", 'y', 'x'], 
-                np.full((len(PLEVEL), len(ds_out.coords['lat'].data), len(ds_out.coords['lon'].data)), np.nan, dtype='float32'))
+            new_data[var] = (["Pressure", 'lat', 'lon'], 
+                np.full((len(plevel_interp), len(ds_out.coords['lat'].data), len(ds_out.coords['lon'].data)), np.nan, dtype='float32'))
     new_coords = copy.deepcopy(ds_out.coords)
-    new_coords['Pressure'] = PLEVEL 
+    new_coords['Pressure'] = plevel_interp
     new_ds = xr.Dataset(new_data, coords=new_coords)
 
     '''
@@ -607,6 +822,6 @@ def interp2plevel(ds, ds_out, pressure):
                 f = interpolate.interp1d(x, y, kind='linear', 
                     bounds_error=False, fill_value=np.nan,  # no extrapolating
                     assume_sorted=True)                     # speed-up by canceling ascending check
-                new_ds.data_vars[var][:,ilat,ilon] = f(PLEVEL)    
+                new_ds.data_vars[var][:,ilat,ilon] = f(plevel_interp)    
     return new_ds
 
