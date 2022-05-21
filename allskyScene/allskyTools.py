@@ -3,7 +3,7 @@ Description: plot dxa
 Author: Hejun Xie
 Date: 2022-05-10 16:53:55
 LastEditors: Hejun Xie
-LastEditTime: 2022-05-22 00:06:45
+LastEditTime: 2022-05-22 01:24:53
 '''
 
 '''
@@ -65,10 +65,12 @@ T_LEVELS_CS = np.linspace(-0.20,0.20,11)
 T_TICKS = [-0.2, -0.10, 0.0, 0.10, 0.20]
 
 # Hydrometeor Manual levels for contour
+# Mxing ratio [kg/kg]
 Q_LEVELS = [1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2]
 Q_LEVEL_LABELS = [r'$1.0e^{-7}$', r'$1.0e^{-6}$', r'$1.0e^{-5}$', 
                 r'$1.0e^{-4}$', r'$1.0e^{-3}$', r'$1.0e^{-2}$']
 
+# Mass concentration [g/m3]
 MC_LEVELS = [1e-3, 1e-2, 1e-1, 1e+0, 1e+1]
 MC_LEVEL_LABELS = [r'$1.0e^{-3}$', r'$1.0e^{-2}$', 
                   r'$1.0e^{-1}$', r'$1.0e^{0}$', r'$1.0e^{+1}$']
@@ -96,8 +98,8 @@ class AllSkyOverview(object):
         self.analy_incre_jobs = ['RH']
         self.level_jobs = [850.]
         self.region_jobs = ['Global']
-        self.layout_settings = dict()
-        self.sector_settings = dict()
+        self.layout_settings = None
+        self.sector_settings = None
 
         # save data
         self.asi = asi
@@ -111,10 +113,16 @@ class AllSkyOverview(object):
         self.agri = agri
         self.mwri = mwri
 
+        # cross section data
+        self.ds_dxa_plevel_sector = None
+        self.ds_xb_plevel_sector = None
+        self.ds_grapesinput_plevel_sector = None
+
     def update_layout_settings(self, region):
         '''
         Description : layout setting for matplotlib plot for different region
         '''    
+        self.layout_settings = dict()
         if region == 'Global':
             # self.layout_settings['llbox'] = [0.,360.,-90.,90.]
             self.layout_settings['llbox'] = [0.,360.,-60.,60.]
@@ -151,6 +159,7 @@ class AllSkyOverview(object):
             raise ValueError('Invalid region {}'.format(region))
 
     def update_sector_settings(self, region):
+        self.sector_settings = dict()
         if region == 'EastAsia':
             # self.sector_settings['sectorStart'] = [150., 20.] # (lon, lat)
             # self.sector_settings['sectorEnd']   = [148., 40.] # (lon, lat)
@@ -159,8 +168,26 @@ class AllSkyOverview(object):
         elif region == 'NorthIndianOcean':
             self.sector_settings['sectorStart'] = [60., 10.] # (lon, lat)
             self.sector_settings['sectorEnd']   = [80., 5.] # (lon, lat)
+        elif region == 'Global':
+            self.sector_settings = None
         else:
             raise ValueError('Invalid region {}'.format(region))
+
+    def interp_to_sector(self):
+        '''
+        interpolate datasets to cross section
+        '''
+        lonA, lonB = self.sector_settings['sectorStart'][0], self.sector_settings['sectorEnd'][0]
+        latA, latB = self.sector_settings['sectorStart'][1], self.sector_settings['sectorEnd'][1]
+
+        lon = xr.DataArray(np.linspace(lonA, lonB, 100), dims="z")
+        lat = xr.DataArray(np.linspace(latA, latB, 100), dims="z")
+
+        del self.ds_dxa_plevel_sector, self.ds_xb_plevel_sector, self.ds_grapesinput_plevel_sector
+
+        self.ds_dxa_plevel_sector = self.ds_dxa_plevel.interp(lon=lon, lat=lat, method='linear')
+        self.ds_xb_plevel_sector = self.ds_xb_plevel.interp(lon=lon, lat=lat, method='linear')
+        self.ds_grapesinput_plevel_sector = self.ds_grapesinput_plevel.interp(lon=lon, lat=lat, method='linear')
 
     def assign_jobs(self,
         region_jobs,
@@ -183,80 +210,83 @@ class AllSkyOverview(object):
         for region in self.region_jobs:
             self.update_layout_settings(region)
             self.update_sector_settings(region)
+
+            # 1. level plot
             for level, analy_incre, hydro_overlay in \
                 product(self.level_jobs, self.analy_incre_jobs, self.hydro_overlay_jobs):
                 self.plot_allsky_level(region, level, analy_incre, hydro_overlay)
             
-            for analy_incre in self.analy_incre_jobs:
-                self.plot_allsky_sector(region, analy_incre)
+            # 2. cross section plot
+            if self.sector_settings is not None:
+                self.interp_to_sector()
+                for analy_incre in self.analy_incre_jobs:
+                    self.plot_allsky_sector(region, analy_incre)
 
-    def plot_allsky_sector(self, region, analy_incre):
+    def plot_RH_CorssSection(self, ax, fig, CBlocation=None, zorder=1):
         '''
-        Plot the given sector of a region
-        '''        
-        lonA, lonB = self.sector_settings['sectorStart'][0], self.sector_settings['sectorEnd'][0]
-        latA, latB = self.sector_settings['sectorStart'][1], self.sector_settings['sectorEnd'][1]
-
-        lon = xr.DataArray(np.linspace(lonA, lonB, 100), dims="z")
-        lat = xr.DataArray(np.linspace(latA, latB, 100), dims="z")
-
-        ds_dxa_plevel_sector = self.ds_dxa_plevel.interp(lon=lon, lat=lat, method='linear')
-        ds_xb_plevel_sector = self.ds_xb_plevel.interp(lon=lon, lat=lat, method='linear')
-        ds_grapesinput_plevel_sector = self.ds_grapesinput_plevel.interp(lon=lon, lat=lat, method='linear')
-
-        z = np.arange(len(ds_dxa_plevel_sector.coords['lon']))
-        p = ds_dxa_plevel_sector.coords['Pressure']
+        Plot RH on Cross Section (contourf)
+        '''
+        z = np.arange(len(self.ds_dxa_plevel_sector.coords['lon']))
+        p = self.ds_dxa_plevel_sector.coords['Pressure']
         TZ, TP = np.meshgrid(z, p)
 
-        FIGNAME = './sector/d{}_ch{}_{}.png'.format(analy_incre, self.ch_no, region)
-        print(FIGNAME)
-        
-        fig = plt.figure(figsize=(13,7.5))
-        ax = fig.add_subplot(111)
-        plt.subplots_adjust(left=0.0, bottom=0.0, right=1.0, top=1.0, wspace=0.0, hspace=0.0)
+        # (Pressure, z) -> (z, Pressure)
+        RH = self.ds_xb_plevel_sector.data_vars['Relative Humidity'].data.T 
+        vstage = 10.0
 
-        '''
-        1. Plot contour and contourf
-        '''
-        dRH = ds_dxa_plevel_sector.data_vars['Increment Relative Humidity'].data # (Pressure, z)
-        dRH = dRH.T # (z, Pressure)
-        RH = ds_xb_plevel_sector.data_vars['Relative Humidity'].data # (Pressure, z)
-        RH = RH.T # (z, Pressure)
-
-        vstage_RH = 10.0
-        vstage_dRH = 1.0
         if not Manual_RH_LEVELS:
-            dRHmin, dRHmax = get_vminvmax(dRH.flatten(), vstage=vstage_dRH, ign_perc=0.5, lsymmetric=True)
-            print('dRHmin={:>.1f}, dRHmax={:>.1f}'.format(dRHmin, dRHmax))
-            RHmin, RHmax = get_vminvmax(RH.flatten(), vstage=vstage_RH, ign_perc=0.0, lsymmetric=False)
+            RHmin, RHmax = get_vminvmax(RH.flatten(), vstage=vstage, ign_perc=0.0, lsymmetric=False)
             print('RHmin={:>.1f}, RHmax={:>.1f}'.format(RHmin, RHmax))
-            RH_LEVELS_CF = np.arange(RHmin, RHmax+Delt, vstage_RH)
-            RH_TICKS = np.arange(RHmin, RHmax+Delt, vstage_RH)
-            dRH_LEVELS_CS = np.arange(dRHmin, dRHmax+Delt, vstage_dRH)
-        
+            RH_LEVELS_CF = np.arange(RHmin, RHmax+Delt, vstage)
+            RH_TICKS = np.arange(RHmin, RHmax+Delt, vstage)
+
         norm = colors.Normalize(vmin=RH_TICKS[0], vmax=RH_TICKS[-1])
-        
         # RHcmap = pplt.Colormap('bilbao_r').truncate(left=0.2)
         RHcmap = pplt.Colormap('BrBg')
-        CF = ax.contourf(TZ.T, TP.T, RH, RH_LEVELS_CF, cmap=RHcmap, norm=norm, alpha=0.8)
-        CS = ax.contour(TZ.T, TP.T, dRH, dRH_LEVELS_CS, colors=('r',), linewidths=(2.0,), zorder=15)
-        labels = ax.clabel(CS, fmt=r'\textbf{%2.1f\%%}', colors='r', fontsize=18, zorder=15)
 
-        self._plot_nan_hatch(ax, TZ.T, TP.T, dRH, transform=None, 
-            color='brown', density=2, zorder=2)
+        CF = ax.contourf(TZ.T, TP.T, RH, RH_LEVELS_CF, cmap=RHcmap, norm=norm, 
+            alpha=0.8, zorder=zorder)
+
+        self._plot_nan_hatch(ax, TZ.T, TP.T, RH, transform=None, 
+            color='brown', density=2, zorder=zorder)   
 
         self._plot_colorbar(fig, ax, CF, 
             label=r'Background Field $x_b$ RH [\%]',
-            location='leftsector',
-            ticks=RH_TICKS)
+            location=CBlocation,
+            ticks=RH_TICKS)   
 
+    def plot_dRH_CrossSection(self, ax, fig, zorder=15):
         '''
-        2.1 Plot imshow of hydrometeor
+        Plot dRH on Cross Section (contour)
         '''
+        z = np.arange(len(self.ds_dxa_plevel_sector.coords['lon']))
+        p = self.ds_dxa_plevel_sector.coords['Pressure']
+        TZ, TP = np.meshgrid(z, p)
+
+        # (Pressure, z) -> (z, Pressure)
+        dRH = self.ds_dxa_plevel_sector.data_vars['Increment Relative Humidity'].data.T 
+        vstage = 1.0
+
+        if not Manual_RH_LEVELS:
+            dRHmin, dRHmax = get_vminvmax(dRH.flatten(), vstage=vstage, ign_perc=0.5, lsymmetric=True)
+            print('dRHmin={:>.1f}, dRHmax={:>.1f}'.format(dRHmin, dRHmax))
+            dRH_LEVELS_CS = np.arange(dRHmin, dRHmax+Delt, vstage)
+
+        CS = ax.contour(TZ.T, TP.T, dRH, dRH_LEVELS_CS, colors=('r',), linewidths=(2.0,), zorder=zorder)
+        labels = ax.clabel(CS, fmt=r'\textbf{%2.1f\%%}', colors='r', fontsize=18, zorder=zorder)
+
+    def plot_hydro_CrossSection(self, ax, fig, CBlocation=None, zorder=10):
+        '''
+        Plot hydrometeor concentration on Cross Section (imshow)
+        '''
+        z = np.arange(len(self.ds_dxa_plevel_sector.coords['lon']))
+        p = self.ds_dxa_plevel_sector.coords['Pressure']
+        TZ, TP = np.meshgrid(z, p)
+
         hydro_list = ['QC_v', 'QR_v', 'QS_v', 'QI_v', 'QG_v']
         # hydro_list = ['QS_v', 'QI_v', 'QG_v'] # ICE PHASE
         # hydro_list = ['QC_v', 'QR_v'] # WATER PHASE
-        hydro_total = np.sum([ds_grapesinput_plevel_sector.data_vars[hydro] for hydro in hydro_list], axis=0) \
+        hydro_total = np.sum([self.ds_grapesinput_plevel_sector.data_vars[hydro] for hydro in hydro_list], axis=0) \
             * 1e3 # [kg/m3] --> [g/m3] 
         plot_hydro = np.ma.masked_array(hydro_total, hydro_total<MC_LEVELS[0])
         norm = colors.LogNorm(vmin=MC_LEVELS[0], vmax=MC_LEVELS[-1])
@@ -266,68 +296,117 @@ class AllSkyOverview(object):
 
         im = ax.imshow(plot_hydro, cmap=rbtop, norm=norm, 
             origin='upper', extent=[np.min(z), np.max(z), np.min(p), np.max(p)],
-            zorder=10, aspect='auto')
+            zorder=zorder, aspect='auto')
         
         self._plot_colorbar(fig, ax, im, 
             label=r'Total Hydrometeor Mass Concentration [$g \cdot m^{-3}$]',
             location='rightsector')
 
+    def plot_freezingLevel_CrossSection(self, ax, fig, zorder=20):
         '''
-        2.2 Plot freezing level
+        Plot freezing level on Cross Section (imshow)
         '''
-        T = ds_xb_plevel_sector.data_vars['Temperature'].data # (Pressure, z)
+        z = np.arange(len(self.ds_dxa_plevel_sector.coords['lon']))
+        p = self.ds_dxa_plevel_sector.coords['Pressure']
+        
+        T = self.ds_xb_plevel_sector.data_vars['Temperature'].data # (Pressure, z)
         levels_freezing = np.nanargmin(np.abs(T - 273.15), axis=0)
         pressures_freezing = np.array([p[level_freezing] for level_freezing in levels_freezing])
         ax.plot(z, pressures_freezing, color='cornflowerblue', ls='--', lw=2.0, zorder=20)
         ax.text(50, np.nanmean(pressures_freezing) - 20., r'$\textbf{Freezing Level}$', 
             color='cornflowerblue', fontsize=20, ha='center', va='center', zorder=20)
 
-
+    def plot_windBarbs_CrossSection(self, ax, fig, zorder=18):
         '''
-        2.3 Plot wind barbs
+        Plot wind barbs on Cross Section (barbs)
         '''
-        U = ds_xb_plevel_sector.data_vars['U wind'].data # (Pressure, z)
-        V = ds_xb_plevel_sector.data_vars['V wind'].data # (Pressure, z)
-        U, V = U.T, V.T # (z, Pressure)
+        z = np.arange(len(self.ds_dxa_plevel_sector.coords['lon']))
+        p = self.ds_dxa_plevel_sector.coords['Pressure']
+        TZ, TP = np.meshgrid(z, p)
+        
+        # (Pressure, z) -> (z, Pressure)
+        U = self.ds_xb_plevel_sector.data_vars['U wind'].data.T 
+        V = self.ds_xb_plevel_sector.data_vars['V wind'].data.T 
         ax.barbs(TZ.T[4::8,4::8], TP.T[4::8,4::8], U[4::8,4::8], V[4::8,4::8], 
             fill_empty=True, pivot='middle', length=6, zorder=18,
             sizes=dict(emptybarb=0.15, spacing=0.2, height=0.3, width=0.5),
             barb_increments=dict(half=1.5, full=3, flag=15))
 
+    def plot_allsky_sector(self, region, analy_incre):
         '''
-        3. Annotation and Output
+        Plot the given sector of a region
         '''
+        FIGNAME = './sector/d{}_ch{}_{}.png'.format(analy_incre, self.ch_no, region)
+        print(FIGNAME)
+        
+        fig = plt.figure(figsize=(13,7.5))
+        ax = fig.add_subplot(111)
+        plt.subplots_adjust(left=0.0, bottom=0.0, right=1.0, top=1.0, wspace=0.0, hspace=0.0)
+
+        '''
+        a). Plot contourf [zorder=1]
+        '''
+        self.plot_RH_CorssSection(ax, fig, CBlocation='leftsector', zorder=1)
+
+        '''
+        b). Plot imshow of hydrometeor [zorder=10]
+        '''
+        self.plot_hydro_CrossSection(ax, fig, CBlocation='rightsector', zorder=10)
+
+        '''
+        c). Plot contour [zorder=15]
+        '''
+        self.plot_dRH_CrossSection(ax, fig, zorder=15)
+
+        '''
+        d). Plot wind barbs [zorder=18]
+        '''
+        self.plot_windBarbs_CrossSection(ax, fig, zorder=18)
+
+        '''
+        d). Plot freezing level [zorder=20]
+        '''
+        self.plot_freezingLevel_CrossSection(ax, fig, zorder=20)
+        
+        '''
+        f). Title Annotation and Output
+        '''
+        # axis adjustment
         ax.minorticks_off()
         ax.set_xticks([])
         ax.invert_yaxis()
         ax.set_yscale('log')
+
+        # Y-axis ticks
         ax.set_yticks(CROSSSECTION_PTICKS)
         ax.set_yticklabels(CROSSSECTION_PTICKLABELS)
-        
         for tick in CROSSSECTION_PTICKS:
             plt.axhline(y=tick, color='Grey', linestyle=dashdotdotted)
         
+        # upper corner text
         LayerText = r'$\textbf{Cross Section AB}$'
         InstText = r'$\textbf{'+get_channel_str(self.asi.instrument, self.ch_no-1)+'}$'
-        from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
-        lon_formatter, lat_formatter = LongitudeFormatter(), LatitudeFormatter() 
-        start_text = r'$\textbf{A' + '[{} {}]'.format(lon_formatter(lonA), lat_formatter(latA)) + '}$'
-        end_text   = r'$\textbf{B' + '[{} {}]'.format(lon_formatter(lonB), lat_formatter(latB)) + '}$'
-
         ax.text(0.0, 1.0, LayerText, 
             ha='left', va='bottom', size=20, transform=ax.transAxes, color='blue')
         ax.text(1.0, 1.0, InstText, 
             ha='right', va='bottom', size=20, transform=ax.transAxes)
+
+        # lower corner text
+        from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
+        lon_formatter, lat_formatter = LongitudeFormatter(), LatitudeFormatter() 
+        start_text = r'$\textbf{A' + '[{} {}]'.format(lon_formatter(self.sector_settings['sectorStart'][0]), 
+            lat_formatter(self.sector_settings['sectorEnd'][1])) + '}$'
+        end_text   = r'$\textbf{B' + '[{} {}]'.format(lon_formatter(self.sector_settings['sectorStart'][0]), 
+            lat_formatter(self.sector_settings['sectorEnd'][0])) + '}$'
         ax.text(0.0, -0.02, start_text, 
             ha='left', va='top', size=20, transform=ax.transAxes, color='blue')
         ax.text(1.0, -0.02, end_text, 
             ha='right', va='top', size=20, transform=ax.transAxes, color='blue')
 
+        # output fig
         plt.savefig(FIGNAME, bbox_inches='tight') if BBOX_CLIP \
             else plt.savefig(FIGNAME)
         plt.close()
-
-        exit()
 
     def plot_allsky_level(self, region, level, analy_incre, hydro_overlay):
         '''
@@ -382,7 +461,8 @@ class AllSkyOverview(object):
             '''
             d). Plot sector Line [zorder = 14]
             '''
-            self.plot_sector_line(ax, fig, zorder=14)
+            if self.sector_settings is not None:
+                self.plot_sector_line(ax, fig, zorder=14)
 
             '''
             e). Plot active observation [zorder = 15]

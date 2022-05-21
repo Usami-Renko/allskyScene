@@ -3,7 +3,7 @@ Description: test module AllSkyOverview
 Author: Hejun Xie
 Date: 2022-05-20 00:14:16
 LastEditors: Hejun Xie
-LastEditTime: 2022-05-22 00:08:23
+LastEditTime: 2022-05-22 01:15:15
 '''
 
 # Global imports
@@ -31,14 +31,14 @@ LEVELS_JOBS = [850.]
 
 # valid: ['AGRI_IR', 'MWRI', 'HYDRO']
 # HYDRO_OVERLAY_JOBS = ['AGRI_IR', 'HYDRO', 'MWRI']
-HYDRO_OVERLAY_JOBS = []
+HYDRO_OVERLAY_JOBS = ['AGRI_IR']
 
 # valid ['RH', 'T']
 ANALY_INCRE_JOBS = ['RH']
 
 # valid ['Global', 'EastAsia', 'NorthIndianOcean']
 # REGION_JOBS = ['Global', 'EastAsia', 'NorthIndianOcean']
-REGION_JOBS = ['NorthIndianOcean']
+REGION_JOBS = ['EastAsia', 'Global', 'NorthIndianOcean']
 
 '''
 1. READ INNOVATION
