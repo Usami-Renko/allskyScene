@@ -3,7 +3,7 @@ Description: plot dxa
 Author: Hejun Xie
 Date: 2022-05-10 16:53:55
 LastEditors: Hejun Xie
-LastEditTime: 2022-05-22 01:24:53
+LastEditTime: 2022-05-22 17:31:18
 '''
 
 '''
@@ -99,7 +99,7 @@ class AllSkyOverview(object):
         self.level_jobs = [850.]
         self.region_jobs = ['Global']
         self.layout_settings = None
-        self.sector_settings = None
+        self.CrossSection_settings = None
 
         # save data
         self.asi = asi
@@ -114,9 +114,9 @@ class AllSkyOverview(object):
         self.mwri = mwri
 
         # cross section data
-        self.ds_dxa_plevel_sector = None
-        self.ds_xb_plevel_sector = None
-        self.ds_grapesinput_plevel_sector = None
+        self.ds_dxa_plevel_CrossSection = None
+        self.ds_xb_plevel_CrossSection = None
+        self.ds_grapesinput_plevel_CrossSection = None
 
     def update_layout_settings(self, region):
         '''
@@ -158,36 +158,36 @@ class AllSkyOverview(object):
         else:
             raise ValueError('Invalid region {}'.format(region))
 
-    def update_sector_settings(self, region):
-        self.sector_settings = dict()
+    def update_CrossSection_settings(self, region):
+        self.CrossSection_settings = dict()
         if region == 'EastAsia':
-            # self.sector_settings['sectorStart'] = [150., 20.] # (lon, lat)
-            # self.sector_settings['sectorEnd']   = [148., 40.] # (lon, lat)
-            self.sector_settings['sectorStart'] = [145., 15.] # (lon, lat)
-            self.sector_settings['sectorEnd']   = [138., 40.] # (lon, lat)
+            # self.CrossSection_settings['CrossSectionStart'] = [150., 20.] # (lon, lat)
+            # self.CrossSection_settings['CrossSectionEnd']   = [148., 40.] # (lon, lat)
+            self.CrossSection_settings['CrossSectionStart'] = [145., 15.] # (lon, lat)
+            self.CrossSection_settings['CrossSectionEnd']   = [138., 40.] # (lon, lat)
         elif region == 'NorthIndianOcean':
-            self.sector_settings['sectorStart'] = [60., 10.] # (lon, lat)
-            self.sector_settings['sectorEnd']   = [80., 5.] # (lon, lat)
+            self.CrossSection_settings['CrossSectionStart'] = [60., 10.] # (lon, lat)
+            self.CrossSection_settings['CrossSectionEnd']   = [80., 5.] # (lon, lat)
         elif region == 'Global':
-            self.sector_settings = None
+            self.CrossSection_settings = None
         else:
             raise ValueError('Invalid region {}'.format(region))
 
-    def interp_to_sector(self):
+    def interp_to_CrossSection(self):
         '''
         interpolate datasets to cross section
         '''
-        lonA, lonB = self.sector_settings['sectorStart'][0], self.sector_settings['sectorEnd'][0]
-        latA, latB = self.sector_settings['sectorStart'][1], self.sector_settings['sectorEnd'][1]
+        lonA, lonB = self.CrossSection_settings['CrossSectionStart'][0], self.CrossSection_settings['CrossSectionEnd'][0]
+        latA, latB = self.CrossSection_settings['CrossSectionStart'][1], self.CrossSection_settings['CrossSectionEnd'][1]
 
         lon = xr.DataArray(np.linspace(lonA, lonB, 100), dims="z")
         lat = xr.DataArray(np.linspace(latA, latB, 100), dims="z")
 
-        del self.ds_dxa_plevel_sector, self.ds_xb_plevel_sector, self.ds_grapesinput_plevel_sector
+        del self.ds_dxa_plevel_CrossSection, self.ds_xb_plevel_CrossSection, self.ds_grapesinput_plevel_CrossSection
 
-        self.ds_dxa_plevel_sector = self.ds_dxa_plevel.interp(lon=lon, lat=lat, method='linear')
-        self.ds_xb_plevel_sector = self.ds_xb_plevel.interp(lon=lon, lat=lat, method='linear')
-        self.ds_grapesinput_plevel_sector = self.ds_grapesinput_plevel.interp(lon=lon, lat=lat, method='linear')
+        self.ds_dxa_plevel_CrossSection = self.ds_dxa_plevel.interp(lon=lon, lat=lat, method='linear')
+        self.ds_xb_plevel_CrossSection = self.ds_xb_plevel.interp(lon=lon, lat=lat, method='linear')
+        self.ds_grapesinput_plevel_CrossSection = self.ds_grapesinput_plevel.interp(lon=lon, lat=lat, method='linear')
 
     def assign_jobs(self,
         region_jobs,
@@ -209,7 +209,7 @@ class AllSkyOverview(object):
         '''
         for region in self.region_jobs:
             self.update_layout_settings(region)
-            self.update_sector_settings(region)
+            self.update_CrossSection_settings(region)
 
             # 1. level plot
             for level, analy_incre, hydro_overlay in \
@@ -217,21 +217,21 @@ class AllSkyOverview(object):
                 self.plot_allsky_level(region, level, analy_incre, hydro_overlay)
             
             # 2. cross section plot
-            if self.sector_settings is not None:
-                self.interp_to_sector()
+            if self.CrossSection_settings is not None:
+                self.interp_to_CrossSection()
                 for analy_incre in self.analy_incre_jobs:
-                    self.plot_allsky_sector(region, analy_incre)
+                    self.plot_allsky_CrossSection(region, analy_incre)
 
     def plot_RH_CorssSection(self, ax, fig, CBlocation=None, zorder=1):
         '''
         Plot RH on Cross Section (contourf)
         '''
-        z = np.arange(len(self.ds_dxa_plevel_sector.coords['lon']))
-        p = self.ds_dxa_plevel_sector.coords['Pressure']
+        z = np.arange(len(self.ds_dxa_plevel_CrossSection.coords['lon']))
+        p = self.ds_dxa_plevel_CrossSection.coords['Pressure']
         TZ, TP = np.meshgrid(z, p)
 
         # (Pressure, z) -> (z, Pressure)
-        RH = self.ds_xb_plevel_sector.data_vars['Relative Humidity'].data.T 
+        RH = self.ds_xb_plevel_CrossSection.data_vars['Relative Humidity'].data.T 
         vstage = 10.0
 
         if not Manual_RH_LEVELS:
@@ -259,12 +259,12 @@ class AllSkyOverview(object):
         '''
         Plot dRH on Cross Section (contour)
         '''
-        z = np.arange(len(self.ds_dxa_plevel_sector.coords['lon']))
-        p = self.ds_dxa_plevel_sector.coords['Pressure']
+        z = np.arange(len(self.ds_dxa_plevel_CrossSection.coords['lon']))
+        p = self.ds_dxa_plevel_CrossSection.coords['Pressure']
         TZ, TP = np.meshgrid(z, p)
 
         # (Pressure, z) -> (z, Pressure)
-        dRH = self.ds_dxa_plevel_sector.data_vars['Increment Relative Humidity'].data.T 
+        dRH = self.ds_dxa_plevel_CrossSection.data_vars['Increment Relative Humidity'].data.T 
         vstage = 1.0
 
         if not Manual_RH_LEVELS:
@@ -279,14 +279,14 @@ class AllSkyOverview(object):
         '''
         Plot hydrometeor concentration on Cross Section (imshow)
         '''
-        z = np.arange(len(self.ds_dxa_plevel_sector.coords['lon']))
-        p = self.ds_dxa_plevel_sector.coords['Pressure']
+        z = np.arange(len(self.ds_dxa_plevel_CrossSection.coords['lon']))
+        p = self.ds_dxa_plevel_CrossSection.coords['Pressure']
         TZ, TP = np.meshgrid(z, p)
 
         hydro_list = ['QC_v', 'QR_v', 'QS_v', 'QI_v', 'QG_v']
         # hydro_list = ['QS_v', 'QI_v', 'QG_v'] # ICE PHASE
         # hydro_list = ['QC_v', 'QR_v'] # WATER PHASE
-        hydro_total = np.sum([self.ds_grapesinput_plevel_sector.data_vars[hydro] for hydro in hydro_list], axis=0) \
+        hydro_total = np.sum([self.ds_grapesinput_plevel_CrossSection.data_vars[hydro] for hydro in hydro_list], axis=0) \
             * 1e3 # [kg/m3] --> [g/m3] 
         plot_hydro = np.ma.masked_array(hydro_total, hydro_total<MC_LEVELS[0])
         norm = colors.LogNorm(vmin=MC_LEVELS[0], vmax=MC_LEVELS[-1])
@@ -300,43 +300,43 @@ class AllSkyOverview(object):
         
         self._plot_colorbar(fig, ax, im, 
             label=r'Total Hydrometeor Mass Concentration [$g \cdot m^{-3}$]',
-            location='rightsector')
+            location='rightCrossSection')
 
     def plot_freezingLevel_CrossSection(self, ax, fig, zorder=20):
         '''
         Plot freezing level on Cross Section (imshow)
         '''
-        z = np.arange(len(self.ds_dxa_plevel_sector.coords['lon']))
-        p = self.ds_dxa_plevel_sector.coords['Pressure']
+        z = np.arange(len(self.ds_dxa_plevel_CrossSection.coords['lon']))
+        p = self.ds_dxa_plevel_CrossSection.coords['Pressure']
         
-        T = self.ds_xb_plevel_sector.data_vars['Temperature'].data # (Pressure, z)
+        T = self.ds_xb_plevel_CrossSection.data_vars['Temperature'].data # (Pressure, z)
         levels_freezing = np.nanargmin(np.abs(T - 273.15), axis=0)
         pressures_freezing = np.array([p[level_freezing] for level_freezing in levels_freezing])
-        ax.plot(z, pressures_freezing, color='cornflowerblue', ls='--', lw=2.0, zorder=20)
+        ax.plot(z, pressures_freezing, color='cornflowerblue', ls='--', lw=2.0, zorder=zorder)
         ax.text(50, np.nanmean(pressures_freezing) - 20., r'$\textbf{Freezing Level}$', 
-            color='cornflowerblue', fontsize=20, ha='center', va='center', zorder=20)
+            color='cornflowerblue', fontsize=20, ha='center', va='center', zorder=zorder)
 
     def plot_windBarbs_CrossSection(self, ax, fig, zorder=18):
         '''
         Plot wind barbs on Cross Section (barbs)
         '''
-        z = np.arange(len(self.ds_dxa_plevel_sector.coords['lon']))
-        p = self.ds_dxa_plevel_sector.coords['Pressure']
+        z = np.arange(len(self.ds_dxa_plevel_CrossSection.coords['lon']))
+        p = self.ds_dxa_plevel_CrossSection.coords['Pressure']
         TZ, TP = np.meshgrid(z, p)
         
         # (Pressure, z) -> (z, Pressure)
-        U = self.ds_xb_plevel_sector.data_vars['U wind'].data.T 
-        V = self.ds_xb_plevel_sector.data_vars['V wind'].data.T 
+        U = self.ds_xb_plevel_CrossSection.data_vars['U wind'].data.T 
+        V = self.ds_xb_plevel_CrossSection.data_vars['V wind'].data.T 
         ax.barbs(TZ.T[4::8,4::8], TP.T[4::8,4::8], U[4::8,4::8], V[4::8,4::8], 
-            fill_empty=True, pivot='middle', length=6, zorder=18,
+            fill_empty=True, pivot='middle', length=6, zorder=zorder,
             sizes=dict(emptybarb=0.15, spacing=0.2, height=0.3, width=0.5),
             barb_increments=dict(half=1.5, full=3, flag=15))
 
-    def plot_allsky_sector(self, region, analy_incre):
+    def plot_allsky_CrossSection(self, region, analy_incre):
         '''
-        Plot the given sector of a region
+        Plot the given CrossSection of a region
         '''
-        FIGNAME = './sector/d{}_ch{}_{}.png'.format(analy_incre, self.ch_no, region)
+        FIGNAME = './CrossSection/d{}_ch{}_{}.png'.format(analy_incre, self.ch_no, region)
         print(FIGNAME)
         
         fig = plt.figure(figsize=(13,7.5))
@@ -346,12 +346,12 @@ class AllSkyOverview(object):
         '''
         a). Plot contourf [zorder=1]
         '''
-        self.plot_RH_CorssSection(ax, fig, CBlocation='leftsector', zorder=1)
+        self.plot_RH_CorssSection(ax, fig, CBlocation='leftCrossSection', zorder=1)
 
         '''
         b). Plot imshow of hydrometeor [zorder=10]
         '''
-        self.plot_hydro_CrossSection(ax, fig, CBlocation='rightsector', zorder=10)
+        self.plot_hydro_CrossSection(ax, fig, CBlocation='rightCrossSection', zorder=10)
 
         '''
         c). Plot contour [zorder=15]
@@ -394,10 +394,10 @@ class AllSkyOverview(object):
         # lower corner text
         from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
         lon_formatter, lat_formatter = LongitudeFormatter(), LatitudeFormatter() 
-        start_text = r'$\textbf{A' + '[{} {}]'.format(lon_formatter(self.sector_settings['sectorStart'][0]), 
-            lat_formatter(self.sector_settings['sectorEnd'][1])) + '}$'
-        end_text   = r'$\textbf{B' + '[{} {}]'.format(lon_formatter(self.sector_settings['sectorStart'][0]), 
-            lat_formatter(self.sector_settings['sectorEnd'][0])) + '}$'
+        start_text = r'$\textbf{A' + '[{} {}]'.format(lon_formatter(self.CrossSection_settings['CrossSectionStart'][0]), 
+            lat_formatter(self.CrossSection_settings['CrossSectionEnd'][1])) + '}$'
+        end_text   = r'$\textbf{B' + '[{} {}]'.format(lon_formatter(self.CrossSection_settings['CrossSectionStart'][0]), 
+            lat_formatter(self.CrossSection_settings['CrossSectionEnd'][0])) + '}$'
         ax.text(0.0, -0.02, start_text, 
             ha='left', va='top', size=20, transform=ax.transAxes, color='blue')
         ax.text(1.0, -0.02, end_text, 
@@ -459,10 +459,10 @@ class AllSkyOverview(object):
             self.plot_streamline(ax, fig, level, zorder=12)
 
             '''
-            d). Plot sector Line [zorder = 14]
+            d). Plot CrossSection Line [zorder = 14]
             '''
-            if self.sector_settings is not None:
-                self.plot_sector_line(ax, fig, zorder=14)
+            if self.CrossSection_settings is not None:
+                self.plot_CrossSection_line(ax, fig, zorder=14)
 
             '''
             e). Plot active observation [zorder = 15]
@@ -501,10 +501,10 @@ class AllSkyOverview(object):
         elif location == 'right':
             CB = plotFig.colorbar(plotStuff, ax=[plotAx], shrink=self.layout_settings['colorbarShrink'], 
                 pad=self.layout_settings['colorbarRightPad'], location='right')
-        elif location == 'leftsector':
+        elif location == 'leftCrossSection':
             CB = plotFig.colorbar(plotStuff, ax=[plotAx], shrink=1.0, 
                 pad=0.07, location='left')
-        elif location == 'rightsector':
+        elif location == 'rightCrossSection':
             CB = plotFig.colorbar(plotStuff, ax=[plotAx], shrink=1.0, 
                 pad=0.01, location='right')
         else:
@@ -696,18 +696,18 @@ class AllSkyOverview(object):
             transform=data_projection,
             zorder=zorder)
 
-    def plot_sector_line(self, ax, fig, zorder=14):
+    def plot_CrossSection_line(self, ax, fig, zorder=14):
         
         color = 'blue'
 
-        ax.plot([self.sector_settings['sectorStart'][0], self.sector_settings['sectorEnd'][0]],
-                [self.sector_settings['sectorStart'][1], self.sector_settings['sectorEnd'][1]],
+        ax.plot([self.CrossSection_settings['CrossSectionStart'][0], self.CrossSection_settings['CrossSectionEnd'][0]],
+                [self.CrossSection_settings['CrossSectionStart'][1], self.CrossSection_settings['CrossSectionEnd'][1]],
                 lw=3.0, ls='--', marker='o', color='blue', transform=data_projection, zorder=zorder)
         
-        ax.text(self.sector_settings['sectorStart'][0], self.sector_settings['sectorStart'][1],
+        ax.text(self.CrossSection_settings['CrossSectionStart'][0], self.CrossSection_settings['CrossSectionStart'][1],
                 'A', ha='left', va='top', color='blue', transform=data_projection, fontsize=25, zorder=zorder)
 
-        ax.text(self.sector_settings['sectorEnd'][0], self.sector_settings['sectorEnd'][1],
+        ax.text(self.CrossSection_settings['CrossSectionEnd'][0], self.CrossSection_settings['CrossSectionEnd'][1],
                 'B', ha='right', va='bottom', color='blue', transform=data_projection, fontsize=25, zorder=zorder)
 
     def plot_incre_RH(self, ax, fig, level, CBlocation=None, zorder=5):
