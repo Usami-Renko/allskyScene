@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # dataTag
-dataTag='singleInstYanhua'
+dataTag=$1
 
 echo download data ${dataTag} ...
 

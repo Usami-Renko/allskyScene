@@ -3,7 +3,7 @@ Description: plot dxa
 Author: Hejun Xie
 Date: 2022-05-10 16:53:55
 LastEditors: Hejun Xie
-LastEditTime: 2022-05-22 17:31:18
+LastEditTime: 2022-05-22 19:52:51
 '''
 
 '''
@@ -93,7 +93,8 @@ class AllSkyOverview(object):
                 ds_dxa, ds_dxa_plevel,
                 ds_xb, ds_xb_plevel, 
                 ds_grapesinput, ds_grapesinput_plevel, 
-                agri, mwri):
+                agri, mwri,
+                expr_dir):
         self.hydro_overlay_jobs = ['AGRI_IR']
         self.analy_incre_jobs = ['RH']
         self.level_jobs = [850.]
@@ -112,6 +113,12 @@ class AllSkyOverview(object):
         self.ds_grapesinput_plevel = ds_grapesinput_plevel
         self.agri = agri
         self.mwri = mwri
+        self.expr_dir = expr_dir
+        try:
+            os.mkdir('{}/CrossSection'.format(self.expr_dir))
+            os.mkdir('{}/level'.format(self.expr_dir))
+        except:
+            pass
 
         # cross section data
         self.ds_dxa_plevel_CrossSection = None
@@ -336,7 +343,8 @@ class AllSkyOverview(object):
         '''
         Plot the given CrossSection of a region
         '''
-        FIGNAME = './CrossSection/d{}_ch{}_{}.png'.format(analy_incre, self.ch_no, region)
+        FIGNAME = '{}/CrossSection/d{}_ch{}_{}.png'.format(self.expr_dir, 
+            analy_incre, self.ch_no, region)
         print(FIGNAME)
         
         fig = plt.figure(figsize=(13,7.5))
@@ -420,7 +428,8 @@ class AllSkyOverview(object):
         
         LayerTag = '{}hPa'.format(level) if isinstance(level, float) \
             else 'Level{}'.format(level)
-        FIGNAME = './level/d{}_{}_ch{}_{}_{}.png'.format(analy_incre, LayerTag, self.ch_no, hydro_overlay, region)
+        FIGNAME = '{}/level/d{}_{}_ch{}_{}_{}.png'.format(self.expr_dir,
+            analy_incre, LayerTag, self.ch_no, hydro_overlay, region)
         print(FIGNAME)
         
         fig = plt.figure(figsize=self.layout_settings['TwoColorBarfigsize'])

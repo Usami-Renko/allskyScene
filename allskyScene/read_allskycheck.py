@@ -3,7 +3,7 @@ Description: read all-sky checked innovations
 Author: Hejun Xie
 Date: 2022-05-10 22:14:23
 LastEditors: Hejun Xie
-LastEditTime: 2022-05-11 18:07:12
+LastEditTime: 2022-05-22 19:42:01
 '''
 
 import pandas as pd
@@ -127,7 +127,7 @@ def read_table(fin, channelData):
         table['cldraderr'][iFOV]  = float(m.group(14))
 
 
-def read_data(file):
+def read_data(file, nactivechannel):
 
     data = dict()
 
@@ -139,7 +139,7 @@ def read_data(file):
                 data[get_domain_key(domainData['PID'])] = domainData
                 if domainData['RestFOVs'] == 0: # No channel info then
                     continue
-                for _ in range(3): # channel 3, 5, 7
+                for _ in range(nactivechannel): # channel 3, 5, 7
                     channelData = read_channel_head(fin)
                     read_table(fin,channelData)
                     domainData[get_channel_key(channelData['CID'])] = channelData

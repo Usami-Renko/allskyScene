@@ -3,11 +3,12 @@ Description: test module AllSkyOverview
 Author: Hejun Xie
 Date: 2022-05-20 00:14:16
 LastEditors: Hejun Xie
-LastEditTime: 2022-05-22 01:15:15
+LastEditTime: 2022-05-25 23:30:40
 '''
 
 # Global imports
 import os
+import sys
 import glob
 import numpy as np
 import xarray as xr
@@ -18,7 +19,7 @@ from allskyScene import AllSkyInno, \
     interp2plevel, \
     get_dxa_dataset, get_xb_dataset, get_grapesinput_dataset 
 
-FORCE_INTERP = False
+FORCE_INTERP = bool(int(sys.argv[1]))
 # interped plevels
 # PLEVEL_INTERP = np.array([1000.,850.,700.,500.,300.,200.])
 PLEVEL_INTERP = np.arange(1000, 200-1e-6, -10.)
@@ -27,25 +28,38 @@ PLOT = True
 
 # plot settings
 # valid = [1000.,850.,700.,500.,300.,200.]
+# LEVELS_JOBS = [1000.,850.,700.,500.,300.,200.]
 LEVELS_JOBS = [850.]
 
 # valid: ['AGRI_IR', 'MWRI', 'HYDRO']
 # HYDRO_OVERLAY_JOBS = ['AGRI_IR', 'HYDRO', 'MWRI']
-HYDRO_OVERLAY_JOBS = ['AGRI_IR']
+HYDRO_OVERLAY_JOBS = ['AGRI_IR', 'HYDRO', 'MWRI']
 
-# valid ['RH', 'T']
+# valid: ['RH', 'T']
+# ANALY_INCRE_JOBS = ['RH', 'T']
 ANALY_INCRE_JOBS = ['RH']
 
-# valid ['Global', 'EastAsia', 'NorthIndianOcean']
+# valid: ['Global', 'EastAsia', 'NorthIndianOcean']
 # REGION_JOBS = ['Global', 'EastAsia', 'NorthIndianOcean']
 REGION_JOBS = ['EastAsia', 'Global', 'NorthIndianOcean']
 
 '''
 1. READ INNOVATION
 '''
-expr_dir = './singleInstYanhua'
+expr_dir = './singleChannel5YanhuaCTRLFIX2'
 allsky_innofiles = glob.glob('{}/checkinno/innotbinno_fy3dmwi????????????.dat_allsky'.format(expr_dir))
-asi = AllSkyInno('mwri', allsky_innofiles)
+asi = AllSkyInno('mwri', allsky_innofiles, valid_channels=[5])
+# asi.find_single_obs([138,140,39,41])
+# asi.find_single_obs([128,129,28,29])
+# asi.find_single_obs([150,152,29,31])
+# asi.find_single_obs([149,153,19,24])
+# print('CTRL')
+# asi.read_ref_data('singleChannel5YanhuaCTRL/checkinno/')
+# asi.compare_ref_data()
+# print('EXPR')
+# asi.read_ref_data('singleChannel5Yanhua/checkinno/')
+# asi.compare_ref_data()
+# exit()
 
 '''
 2. Read satellite data
@@ -63,7 +77,7 @@ mwri.read_mwri_swaths(mwri_channel=6)
 '''
 ch_nos = [5]
 for ch_no in ch_nos:
-    expr_dir = './singleChannel{}Yanhua'.format(ch_no)
+    expr_dir = './singleChannel{}YanhuaCTRLFIX2'.format(ch_no)
     print(expr_dir)
     dxa_file = '{}/binary/dxa.nc'.format(expr_dir)
     xb_file =  '{}/binary/xb.nc'.format(expr_dir)
@@ -96,7 +110,8 @@ for ch_no in ch_nos:
             ds_dxa, ds_dxa_plevel,
             ds_xb, ds_xb_plevel, 
             ds_grapesinput, ds_grapesinput_plevel,
-            agri, mwri)
+            agri, mwri, 
+            expr_dir)
         
         aso.assign_jobs(region_jobs=REGION_JOBS,
             level_jobs=LEVELS_JOBS,
