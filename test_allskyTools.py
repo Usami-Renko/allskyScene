@@ -3,7 +3,7 @@ Description: test module AllSkyOverview
 Author: Hejun Xie
 Date: 2022-05-20 00:14:16
 LastEditors: Hejun Xie
-LastEditTime: 2022-05-25 23:30:40
+LastEditTime: 2022-05-26 23:55:50
 '''
 
 # Global imports
@@ -46,19 +46,13 @@ REGION_JOBS = ['EastAsia', 'Global', 'NorthIndianOcean']
 '''
 1. READ INNOVATION
 '''
-expr_dir = './singleChannel5YanhuaCTRLFIX2'
+expr_dir = './singleObsChannel5Yanhua'
 allsky_innofiles = glob.glob('{}/checkinno/innotbinno_fy3dmwi????????????.dat_allsky'.format(expr_dir))
 asi = AllSkyInno('mwri', allsky_innofiles, valid_channels=[5])
-# asi.find_single_obs([138,140,39,41])
-# asi.find_single_obs([128,129,28,29])
-# asi.find_single_obs([150,152,29,31])
 # asi.find_single_obs([149,153,19,24])
-# print('CTRL')
-# asi.read_ref_data('singleChannel5YanhuaCTRL/checkinno/')
-# asi.compare_ref_data()
-# print('EXPR')
-# asi.read_ref_data('singleChannel5Yanhua/checkinno/')
-# asi.compare_ref_data()
+asi.find_single_obs([142,143,15.5,17])
+asi.read_ref_data('singleObsChannel5Yanhua/checkinno/')
+asi.compare_ref_data()
 # exit()
 
 '''
@@ -77,7 +71,7 @@ mwri.read_mwri_swaths(mwri_channel=6)
 '''
 ch_nos = [5]
 for ch_no in ch_nos:
-    expr_dir = './singleChannel{}YanhuaCTRLFIX2'.format(ch_no)
+    expr_dir = './singleObsChannel{}Yanhua'.format(ch_no)
     print(expr_dir)
     dxa_file = '{}/binary/dxa.nc'.format(expr_dir)
     xb_file =  '{}/binary/xb.nc'.format(expr_dir)
