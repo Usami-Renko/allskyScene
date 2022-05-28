@@ -3,7 +3,7 @@ Description: plot jacobian of single observation
 Author: Hejun Xie
 Date: 2022-05-27 15:56:31
 LastEditors: Hejun Xie
-LastEditTime: 2022-05-28 21:34:35
+LastEditTime: 2022-05-28 23:48:11
 '''
 
 # Global imports
@@ -13,12 +13,34 @@ import proplot as pplt
 from read_jacobian import rttov_profile, rttov_cld_profile
 from utils import get_channel_str
 
-directory = './Jacobian/profile3/'
+directory = './Jacobian/singleob1/'
 JACOBIANFILE_allsky = '{}/jacobian_allsky.dat'.format(directory)
 JACOBIANFILE_clearsky = '{}/jacobian_clearsky.dat'.format(directory)
 nchannels = 10
 PLOT_CHANNELS = [0,1,2,3,4,5,6,7,8,9]
 # PLOT_CHANNELS = [4] # 23.8GHz V pol.
+# gas_unit = '[ppmv]' # [kg/kg] / [ppmv]
+gas_unit = '[kg/kg]' # [kg/kg] / [ppmv]
+
+qlim = {
+    '[kg/kg]': [1e-4, 4e-2],
+    '[ppmv]': [1e1, 1e4],
+}
+
+qticks = {
+    '[kg/kg]': (1e-4, 1e-3, 1e-2),
+    '[ppmv]': (1e1, 1e2, 1e3, 1e4),
+}
+
+jqlim = {
+    '[kg/kg]': (-1e3, 1e3),
+    '[ppmv]': (-1e-3, 1e-3),
+}
+
+jqlinthresh = {
+    '[kg/kg]': 1e2,
+    '[ppmv]': 1e-4,
+}
 
 c0 = 'k'
 c1 = 'red8'
@@ -27,11 +49,16 @@ c3 = 'yellow8'
 c4 = 'green8'
 c5 = 'cyan8'
 
+fc1 = 'gray4'
+fc2 = 'gray6'
+fc3 = 'gray8'
+
 def plot_jacobian_profile(baseProf, JacobianProfs, JacobianClearProfs, pic, ch_no):
     '''
     Plot Jacobian
     '''
     JacobianProf = JacobianProfs[ch_no]
+    JacobianClearProf = JacobianClearProfs[ch_no]
 
     # T, q, cc, clw/rain, ciw/snow 
     pplt.rc.update({'meta.width': 1, 'label.weight': 'bold', 'tick.labelweight': 'bold', 
@@ -63,6 +90,7 @@ def plot_jacobian_profile(baseProf, JacobianProfs, JacobianClearProfs, pic, ch_n
     1. T & JacobianT
     '''
     axes[0].linex(baseProf.p, baseProf.T, color=c0)
+    axes[0].areax(baseProf.p, baseProf.T, color=fc1)
 
     ox0 = axes[0].altx(color=c1, label=r'Jacobian Temperature $ \partial{T_b} / \partial{T} $ [K/K]', lw=1)
     art_allsky = ox0.linex(baseProf.p, JacobianProf.T, color=c1, ls='-',
@@ -81,7 +109,7 @@ def plot_jacobian_profile(baseProf, JacobianProfs, JacobianClearProfs, pic, ch_n
     )
     
     ox0.format(
-        xlim=(-2e-1, 2e-1), 
+        xlim=[-2e-1, 2e-1], 
         xformatter='sci', xscale='symlog', xscale_kw=dict(linthreshx=1e-2), 
         xtickminor=True, xgrid=True, xgridcolor=c1, xtickdir='in',
         rc_kw={'grid.alpha':0.4},
@@ -92,8 +120,9 @@ def plot_jacobian_profile(baseProf, JacobianProfs, JacobianClearProfs, pic, ch_n
     2. q & Jacobianq
     '''
     axes[1].linex(baseProf.p, baseProf.q, color=c0)
+    axes[1].areax(baseProf.p, baseProf.q, color=fc1)
 
-    ox1 = axes[1].altx(color=c2, label=r'Jacobian Humidity $ \partial{T_b} / \partial{q} $  [K/ppmv]', lw=1)
+    ox1 = axes[1].altx(color=c2, label=r'Jacobian Humidity $ \partial{T_b} / \partial{q} $  ' + r'[K/{}]'.format(gas_unit), lw=1)
     art_allsky = ox1.linex(baseProf.p, JacobianProf.q, color=c2, ls='-',
         label=r'$ \partial{T_b} / \partial{q} $')
     art_clearsky = ox1.linex(baseProf.p, JacobianClearProf.q, color=c2, ls='--',
@@ -103,15 +132,15 @@ def plot_jacobian_profile(baseProf, JacobianProfs, JacobianClearProfs, pic, ch_n
 
     axes[1].format(
         urtitle=r'\textbf{q}',
-        xlabel=r'Water Vapour [ppmv]',
+        xlabel=r'Water Vapour ' + gas_unit,
         xscale='log', xformatter='sci',
         yformatter='{x:.0f}hPa',
-        xlim=(1e1, 1e4), xticks=(1e1, 1e2, 1e3, 1e4), 
+        xlim=qlim[gas_unit], xticks=qticks[gas_unit], 
     )
 
     ox1.format(
-        xlim=(-1e-3, 1e-3), 
-        xformatter='sci', xscale='symlog', xscale_kw=dict(linthreshx=1e-4), 
+        xlim=jqlim[gas_unit], 
+        xformatter='sci', xscale='symlog', xscale_kw=dict(linthreshx=jqlinthresh[gas_unit]), 
         xtickminor=True, xgrid=True, xgridcolor=c2, xtickdir='in',
         rc_kw={'grid.alpha':0.4},
     )
@@ -121,6 +150,7 @@ def plot_jacobian_profile(baseProf, JacobianProfs, JacobianClearProfs, pic, ch_n
     3. cc & Jacobiancc
     '''
     axes[2].linex(baseProf.p, baseProf.cld_profile.cc, color=c0)
+    axes[2].areax(baseProf.p, baseProf.cld_profile.cc, color=fc1)
 
     ox2 = axes[2].altx(color=c3, label=r'Jacobian cc $ \partial{T_b} / \partial{cc} $  [K/-]', lw=1)
     ox2.linex(baseProf.p, JacobianProf.cld_profile.cc, color=c3, label=r'$ \partial{T_b} / \partial{cc} $')
@@ -129,12 +159,12 @@ def plot_jacobian_profile(baseProf, JacobianProfs, JacobianClearProfs, pic, ch_n
     axes[2].format(
         urtitle=r'\textbf{CC}',
         xlabel=r'Cloud Fraction [0-1]',
-        xlim=(0., 1.), xticks=(0.0, 0.2, 0.4, 0.6, 0.8, 1.0),
+        xlim=[0., 1.], xticks=(0.0, 0.2, 0.4, 0.6, 0.8, 1.0),
         yformatter='{x:.0f}hPa',
     )
 
     ox2.format(
-        xlim=(-5.0, 5.0), xscale='symlog', xscale_kw=dict(linthreshx=1e-1),
+        xlim=[-5.0, 5.0], xscale='symlog', xscale_kw=dict(linthreshx=1e-1),
         xtickminor=True, xgrid=True, xgridcolor=c3, xtickdir='in',
         rc_kw={'grid.alpha':0.4}, 
     )    
@@ -144,9 +174,11 @@ def plot_jacobian_profile(baseProf, JacobianProfs, JacobianClearProfs, pic, ch_n
     '''
     axes[3].linex(baseProf.p, baseProf.cld_profile.clw, color=c0, ls='--')
     axes[3].linex(baseProf.p, baseProf.cld_profile.rain, color=c0, ls='-')
+    axes[3].areax(baseProf.p, baseProf.cld_profile.clw, color=pplt.set_alpha(fc2, 0.5))
+    axes[3].areax(baseProf.p, baseProf.cld_profile.rain, color=pplt.set_alpha(fc3, 0.5))
 
     ox3 = axes[3].altx(color=c4, 
-        label=r'Jacobian CLW/RAIN $ \partial{T_b} / \partial{q_{liq}} $  [K/(kg/kg)]', lw=1)
+        label=r'Jacobian CLW/RAIN $ \partial{T_b} / \partial{q_{liq}} $  [K/[kg/kg]]', lw=1)
     ox3.linex(baseProf.p, JacobianProf.cld_profile.clw, color=c4, ls='--', 
         label=r'$ \partial{T_b} / \partial{q_{CLW}} $')
     ox3.linex(baseProf.p, JacobianProf.cld_profile.rain, color=c4, ls='-', 
@@ -158,11 +190,11 @@ def plot_jacobian_profile(baseProf, JacobianProfs, JacobianClearProfs, pic, ch_n
         xlabel=r'CLW/RAIN Mxing Ratio [kg/kg]',
         xscale='log', xformatter='sci',
         yformatter='{x:.0f}hPa',
-        xlim=(1e-6, 1e-3), xticks=(1e-6, 1e-5, 1e-4, 1e-3),
+        xlim=[1e-6, 1e-3], xticks=(1e-6, 1e-5, 1e-4, 1e-3),
     )
 
     ox3.format(
-        xlim=(-1e5, 1e5), 
+        xlim=[-1e5, 1e5], 
         xformatter='sci', xscale='symlog', xscale_kw=dict(linthreshx=1e4),
         xtickminor=True, xgrid=True, xgridcolor=c4, xtickdir='in',
         rc_kw={'grid.alpha':0.4}, 
@@ -175,9 +207,11 @@ def plot_jacobian_profile(baseProf, JacobianProfs, JacobianClearProfs, pic, ch_n
 
     axes[4].linex(baseProf.p, baseProf.cld_profile.ciw, color=c0, ls='--')
     axes[4].linex(baseProf.p, baseProf.cld_profile.snow, color=c0, ls='-')
+    axes[4].areax(baseProf.p, baseProf.cld_profile.ciw, color=pplt.set_alpha(fc2, 0.5))
+    axes[4].areax(baseProf.p, baseProf.cld_profile.snow, color=pplt.set_alpha(fc3, 0.5))
 
     ox4 = axes[4].altx(color=c5, 
-        label=r'Jacobian CIW/SNOW $ \partial{T_b} / \partial{q_{sol}} $ [K/(kg/kg)]', lw=1)
+        label=r'Jacobian CIW/SNOW $ \partial{T_b} / \partial{q_{sol}} $ [K/[kg/kg]]', lw=1)
     ox4.linex(baseProf.p, JacobianProf.cld_profile.ciw, color=c5, ls='--',
         label=r'$ \partial{T_b} / \partial{q_{CIW}} $')
     ox4.linex(baseProf.p, JacobianProf.cld_profile.snow, color=c5, ls='-',
@@ -189,11 +223,11 @@ def plot_jacobian_profile(baseProf, JacobianProfs, JacobianClearProfs, pic, ch_n
         xlabel=r'CIW/SNOW Mxing Ratio [kg/kg]',
         xscale='log', xformatter='sci',
         yformatter='{x:.0f}hPa',
-        xlim=(1e-6, 1e-3), xticks=(1e-6, 1e-5, 1e-4, 1e-3),
+        xlim=[1e-6, 1e-3], xticks=(1e-6, 1e-5, 1e-4, 1e-3),
     )
 
     ox4.format(
-        xlim=(-1e5, 1e5), 
+        xlim=[-1e5, 1e5], 
         xformatter='sci', xscale='symlog', xscale_kw=dict(linthreshx=1e4),
         xtickminor=True, xgrid=True, xgridcolor=c5, xtickdir='in',
         rc_kw={'grid.alpha':0.4},  

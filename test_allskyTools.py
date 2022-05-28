@@ -3,7 +3,7 @@ Description: test module AllSkyOverview
 Author: Hejun Xie
 Date: 2022-05-20 00:14:16
 LastEditors: Hejun Xie
-LastEditTime: 2022-05-26 23:55:50
+LastEditTime: 2022-05-29 00:29:24
 '''
 
 # Global imports
@@ -37,11 +37,11 @@ HYDRO_OVERLAY_JOBS = ['AGRI_IR', 'HYDRO', 'MWRI']
 
 # valid: ['RH', 'T']
 # ANALY_INCRE_JOBS = ['RH', 'T']
-ANALY_INCRE_JOBS = ['RH']
+ANALY_INCRE_JOBS = ['RH', 'T']
 
 # valid: ['Global', 'EastAsia', 'NorthIndianOcean']
 # REGION_JOBS = ['Global', 'EastAsia', 'NorthIndianOcean']
-REGION_JOBS = ['EastAsia', 'Global', 'NorthIndianOcean']
+REGION_JOBS = ['EastAsia']
 
 '''
 1. READ INNOVATION
@@ -50,9 +50,9 @@ expr_dir = './singleObsChannel5Yanhua'
 allsky_innofiles = glob.glob('{}/checkinno/innotbinno_fy3dmwi????????????.dat_allsky'.format(expr_dir))
 asi = AllSkyInno('mwri', allsky_innofiles, valid_channels=[5])
 # asi.find_single_obs([149,153,19,24])
-asi.find_single_obs([142,143,15.5,17])
-asi.read_ref_data('singleObsChannel5Yanhua/checkinno/')
-asi.compare_ref_data()
+# asi.find_single_obs([142,143,15.5,17])
+# asi.read_ref_data('singleObsChannel5Yanhua/checkinno/')
+# asi.compare_ref_data()
 # exit()
 
 '''

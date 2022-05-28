@@ -3,7 +3,7 @@ Description: plot dxa
 Author: Hejun Xie
 Date: 2022-05-10 16:53:55
 LastEditors: Hejun Xie
-LastEditTime: 2022-05-22 19:52:51
+LastEditTime: 2022-05-29 00:25:51
 '''
 
 '''
@@ -170,8 +170,11 @@ class AllSkyOverview(object):
         if region == 'EastAsia':
             # self.CrossSection_settings['CrossSectionStart'] = [150., 20.] # (lon, lat)
             # self.CrossSection_settings['CrossSectionEnd']   = [148., 40.] # (lon, lat)
-            self.CrossSection_settings['CrossSectionStart'] = [145., 15.] # (lon, lat)
-            self.CrossSection_settings['CrossSectionEnd']   = [138., 40.] # (lon, lat)
+            # self.CrossSection_settings['CrossSectionStart'] = [145., 15.] # (lon, lat)
+            # self.CrossSection_settings['CrossSectionEnd']   = [138., 40.] # (lon, lat)
+            self.CrossSection_settings['CrossSectionStart'] = [142.54,  10.] # (lon, lat)
+            self.CrossSection_settings['CrossSectionEnd']   = [142.54, 20.] # (lon, lat)
+            self.CrossSection_settings['singleob'] = [142.54, 15.59] # (lon, lat)
         elif region == 'NorthIndianOcean':
             self.CrossSection_settings['CrossSectionStart'] = [60., 10.] # (lon, lat)
             self.CrossSection_settings['CrossSectionEnd']   = [80., 5.] # (lon, lat)
@@ -281,6 +284,26 @@ class AllSkyOverview(object):
 
         CS = ax.contour(TZ.T, TP.T, dRH, dRH_LEVELS_CS, colors=('r',), linewidths=(2.0,), zorder=zorder)
         labels = ax.clabel(CS, fmt=r'\textbf{%2.1f\%%}', colors='r', fontsize=18, zorder=zorder)
+    
+    def plot_dT_CrossSection(self, ax, fig, zorder=15):
+        '''
+        Plot dRH on Cross Section (contour)
+        '''
+        z = np.arange(len(self.ds_dxa_plevel_CrossSection.coords['lon']))
+        p = self.ds_dxa_plevel_CrossSection.coords['Pressure']
+        TZ, TP = np.meshgrid(z, p)
+
+        # (Pressure, z) -> (z, Pressure)
+        dT = self.ds_dxa_plevel_CrossSection.data_vars['Increment Temperature'].data.T 
+        vstage = 0.1
+
+        if not Manual_RH_LEVELS:
+            dTmin, dTmax = get_vminvmax(dT.flatten(), vstage=vstage, ign_perc=0.5, lsymmetric=True)
+            print('dTmin={:>.1f}, dTmax={:>.1f}'.format(dTmin, dTmax))
+            dT_LEVELS_CS = np.arange(dTmin, dTmax+Delt, vstage)
+
+        CS = ax.contour(TZ.T, TP.T, dT, dT_LEVELS_CS, colors=('r',), linewidths=(2.0,), zorder=zorder)
+        labels = ax.clabel(CS, fmt=r'\textbf{%2.1fK}', colors='r', fontsize=18, zorder=zorder)
 
     def plot_hydro_CrossSection(self, ax, fig, CBlocation=None, zorder=10):
         '''
@@ -339,6 +362,20 @@ class AllSkyOverview(object):
             sizes=dict(emptybarb=0.15, spacing=0.2, height=0.3, width=0.5),
             barb_increments=dict(half=1.5, full=3, flag=15))
 
+    def plot_singleob_CrossSection(self, ax, fig, zorder=21):
+        '''
+        Plot single observation vline in CrossSection
+        '''
+        z = np.arange(len(self.ds_dxa_plevel_CrossSection.coords['lon']))
+        p = self.ds_dxa_plevel_CrossSection.coords['Pressure']
+
+        if 'singleob' in self.CrossSection_settings.keys():
+            ratio = (self.CrossSection_settings['singleob'][1] - self.CrossSection_settings['CrossSectionStart'][1]) / \
+                (self.CrossSection_settings['CrossSectionEnd'][1] - self.CrossSection_settings['CrossSectionStart'][1]) 
+            zcoord_singleob = (z[-1] - z[0]) * ratio + z[0]
+        
+        ax.vlines(x=zcoord_singleob, ymin=np.min(p), ymax=np.max(p), color='r', lw=4.0, zorder=zorder)
+
     def plot_allsky_CrossSection(self, region, analy_incre):
         '''
         Plot the given CrossSection of a region
@@ -364,7 +401,10 @@ class AllSkyOverview(object):
         '''
         c). Plot contour [zorder=15]
         '''
-        self.plot_dRH_CrossSection(ax, fig, zorder=15)
+        if analy_incre == 'RH':
+            self.plot_dRH_CrossSection(ax, fig, zorder=15)
+        elif analy_incre == 'T':
+            self.plot_dT_CrossSection(ax, fig, zorder=15)
 
         '''
         d). Plot wind barbs [zorder=18]
@@ -372,12 +412,17 @@ class AllSkyOverview(object):
         self.plot_windBarbs_CrossSection(ax, fig, zorder=18)
 
         '''
-        d). Plot freezing level [zorder=20]
+        e). Plot freezing level [zorder=20]
         '''
         self.plot_freezingLevel_CrossSection(ax, fig, zorder=20)
-        
+
         '''
-        f). Title Annotation and Output
+        f). Plot single observation point [zorder=21] 
+        '''
+        self.plot_singleob_CrossSection(ax, fig, zorder=21)
+            
+        '''
+        g). Title Annotation and Output
         '''
         # axis adjustment
         ax.minorticks_off()
