@@ -48,7 +48,8 @@ scp -i  ~/.ssh/id_rsa -r wanghao@10.40.140.18:${remote_dir}/../../std.out.0000 $
 scp -i  ~/.ssh/id_rsa -r wanghao@10.40.140.18:${remote_dir}/../../namelist.4dvar ${local_dir}
 scp -i  ~/.ssh/id_rsa -r wanghao@10.40.140.18:${remote_dir}/../../namelist.input ${local_dir}
 scp -i  ~/.ssh/id_rsa -r wanghao@10.40.140.18:${remote_dir}/../../namelist_l.input ${local_dir}
-scp -i  ~/.ssh/id_rsa -r wanghao@10.40.140.18:${remote_dir}/../../jacobian.dat ${local_dir}
+scp -i  ~/.ssh/id_rsa -r wanghao@10.40.140.18:${remote_dir}/../../jacobian_clearsky.dat ${local_dir}
+scp -i  ~/.ssh/id_rsa -r wanghao@10.40.140.18:${remote_dir}/../../jacobian_allsky.dat ${local_dir}
 
 scp -i  ~/.ssh/id_rsa -r wanghao@10.40.140.18:${remote_dir}/../dxa.grd ${binary_dir}
 scp -i  ~/.ssh/id_rsa -r wanghao@10.40.140.18:${remote_dir}/../dxa.ctl  ${binary_dir}

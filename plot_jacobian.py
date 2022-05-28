@@ -3,7 +3,7 @@ Description: plot jacobian of single observation
 Author: Hejun Xie
 Date: 2022-05-27 15:56:31
 LastEditors: Hejun Xie
-LastEditTime: 2022-05-28 20:18:03
+LastEditTime: 2022-05-28 21:34:35
 '''
 
 # Global imports
@@ -13,8 +13,12 @@ import proplot as pplt
 from read_jacobian import rttov_profile, rttov_cld_profile
 from utils import get_channel_str
 
-JACOBIANFILE = './jacobian.dat'
+directory = './Jacobian/profile3/'
+JACOBIANFILE_allsky = '{}/jacobian_allsky.dat'.format(directory)
+JACOBIANFILE_clearsky = '{}/jacobian_clearsky.dat'.format(directory)
 nchannels = 10
+PLOT_CHANNELS = [0,1,2,3,4,5,6,7,8,9]
+# PLOT_CHANNELS = [4] # 23.8GHz V pol.
 
 c0 = 'k'
 c1 = 'red8'
@@ -23,7 +27,7 @@ c3 = 'yellow8'
 c4 = 'green8'
 c5 = 'cyan8'
 
-def plot_jacobian_profile(baseProf, JacobianProfs, pic, ch_no):
+def plot_jacobian_profile(baseProf, JacobianProfs, JacobianClearProfs, pic, ch_no):
     '''
     Plot Jacobian
     '''
@@ -61,8 +65,12 @@ def plot_jacobian_profile(baseProf, JacobianProfs, pic, ch_no):
     axes[0].linex(baseProf.p, baseProf.T, color=c0)
 
     ox0 = axes[0].altx(color=c1, label=r'Jacobian Temperature $ \partial{T_b} / \partial{T} $ [K/K]', lw=1)
-    ox0.linex(baseProf.p, JacobianProf.T, color=c1, label=r'$ \partial{T_b} / \partial{T} $')
-    handles_clearsky.extend(ox0.get_legend_handles_labels()[0])
+    art_allsky = ox0.linex(baseProf.p, JacobianProf.T, color=c1, ls='-',
+        label=r'$ \partial{T_b} / \partial{T} $')
+    art_clearsky = ox0.linex(baseProf.p, JacobianClearProf.T, color=c1, ls='--',
+        label=r'$ \partial{T_b} / \partial{T} $')
+    handles_allsky.extend(art_allsky)
+    handles_clearsky.extend(art_clearsky)
 
     axes[0].format(
         urtitle=r'\textbf{T}',
@@ -86,8 +94,12 @@ def plot_jacobian_profile(baseProf, JacobianProfs, pic, ch_no):
     axes[1].linex(baseProf.p, baseProf.q, color=c0)
 
     ox1 = axes[1].altx(color=c2, label=r'Jacobian Humidity $ \partial{T_b} / \partial{q} $  [K/ppmv]', lw=1)
-    ox1.linex(baseProf.p, JacobianProf.q, color=c2, label=r'$ \partial{T_b} / \partial{q} $')
-    handles_clearsky.extend(ox1.get_legend_handles_labels()[0])
+    art_allsky = ox1.linex(baseProf.p, JacobianProf.q, color=c2, ls='-',
+        label=r'$ \partial{T_b} / \partial{q} $')
+    art_clearsky = ox1.linex(baseProf.p, JacobianClearProf.q, color=c2, ls='--',
+        label=r'$ \partial{T_b} / \partial{q} $')
+    handles_allsky.extend(art_allsky)
+    handles_clearsky.extend(art_clearsky)
 
     axes[1].format(
         urtitle=r'\textbf{q}',
@@ -207,19 +219,19 @@ def plot_jacobian_profile(baseProf, JacobianProfs, pic, ch_no):
             frame=True, ncols=1, order='F')
         
         InstText = r'$\textbf{'+get_channel_str('mwri', ch_no)+'}$'
-        ax_aux.text(0.0, 0.3, InstText, transform='axes', size='large', ha='left', va='top')
+        ax_aux.text(0.0, 0.2, InstText, transform='axes', size='large', ha='left', va='top')
 
         from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
         lon_formatter, lat_formatter = LongitudeFormatter(), LatitudeFormatter() 
         LatLonText = r'$\textbf{'+ 'Profile at {}, {}'.format( lat_formatter(baseProf.viewingConditions['latitude']), 
             lon_formatter(baseProf.viewingConditions['longitude']) ) +'}$'
-        ax_aux.text(0.0, 0.15, LatLonText, transform='axes', size='large', ha='left', va='top')
+        ax_aux.text(0.0, 0.05, LatLonText, transform='axes', size='large', ha='left', va='top')
 
     
     fig.save(pic)
 
 if __name__ == '__main__':
-    with open(JACOBIANFILE, 'r') as fin:
+    with open(JACOBIANFILE_allsky, 'r') as fin:
         baseProf = rttov_profile()
         baseProf.readfromfile(fin)
         baseCldProf = rttov_cld_profile()
@@ -235,7 +247,17 @@ if __name__ == '__main__':
             JacobianProf.cld_profile = JacobianCldProf
             JacobianProfs.append(JacobianProf)
     
-    for ch_no in range(nchannels):
-        pic = 'Jacobian_ch{}.png'.format(ch_no+1)
+    with open(JACOBIANFILE_clearsky, 'r') as fin:
+        baseProfClear = rttov_profile()
+        baseProfClear.readfromfile(fin)
+        
+        JacobianClearProfs = []
+        for ichannel in range(nchannels):
+            JacobianClearProf = rttov_profile()
+            JacobianClearProf.readfromfile(fin)
+            JacobianClearProfs.append(JacobianClearProf)
+    
+    for ch_no in PLOT_CHANNELS:
+        pic = '{}Jacobian_ch{}.png'.format(directory, ch_no+1)
         print(pic)
-        plot_jacobian_profile(baseProf, JacobianProfs, pic, ch_no)
+        plot_jacobian_profile(baseProf, JacobianProfs, JacobianClearProfs, pic, ch_no)
